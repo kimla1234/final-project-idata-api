@@ -63,9 +63,15 @@ public class User extends Auditable {
             inverseJoinColumns = @JoinColumn(name = "role_id", referencedColumnName = "id"))
     private List<Role> roles;
 
-    // User
-    @OneToOne(mappedBy = "createdBy")
-    private Organizer organizer;
+    @ManyToMany
+    @JoinTable(name = "users_workspaces",
+            joinColumns = @JoinColumn(name = "user_id"),
+            inverseJoinColumns = @JoinColumn(name = "workspace_id"))
+    private List<Workspace> workspaces;
+
+    // User ម្នាក់អាចជាអ្នកបង្កើត Message ច្រើន
+    @OneToMany(mappedBy = "sender")
+    private List<Message> messages;
 
 
     public void setIsDelete(boolean b) {

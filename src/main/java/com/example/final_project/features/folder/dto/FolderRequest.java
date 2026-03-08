@@ -1,4 +1,8 @@
 package com.example.final_project.features.folder.dto;
 
-public record FolderRRequest() {
+import jakarta.validation.constraints.NotBlank;
+
+public record FolderRequest(
+        @NotBlank String name
+) {
 }

@@ -1,4 +1,7 @@
 package com.example.final_project.features.folder.dto;
 
-public class FolderResponse {
+public record FolderResponse(
+        Integer id,
+        String name
+) {
 }

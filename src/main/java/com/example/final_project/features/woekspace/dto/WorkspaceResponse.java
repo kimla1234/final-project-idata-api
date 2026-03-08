@@ -1,4 +1,7 @@
 package com.example.final_project.features.woekspace.dto;
 
-public class WorkspaceResponse {
-}
+public record WorkspaceResponse(
+        Integer id,
+        String name,
+        String description
+) {}

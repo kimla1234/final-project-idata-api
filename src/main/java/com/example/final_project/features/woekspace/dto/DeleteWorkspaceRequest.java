@@ -1,4 +1,7 @@
 package com.example.final_project.features.woekspace.dto;
 
-public class DeleteWorkspaceRequest {
-}
+import jakarta.validation.constraints.NotBlank;
+
+public record DeleteWorkspaceRequest(
+        @NotBlank String password
+) {}

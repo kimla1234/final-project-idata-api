@@ -1,21 +1,22 @@
 package com.example.final_project.features.auth;
 
 import com.example.final_project.base.BaseMessage;
-import com.example.final_project.domain.Role;
-import com.example.final_project.domain.Token;
-import com.example.final_project.domain.User;
+import com.example.final_project.domain.*;
 import com.example.final_project.features.auth.dto.*;
+import com.example.final_project.features.folder.FolderRepository;
 import com.example.final_project.features.token.AuthTokenService;
 import com.example.final_project.features.token.TokenRepository;
 import com.example.final_project.features.user.RoleRepository;
 import com.example.final_project.features.user.UserRepository;
+import com.example.final_project.features.user.UserService;
+import com.example.final_project.features.woekspace.WorkspaceMemberRepository;
+import com.example.final_project.features.woekspace.WorkspaceRepository;
 import com.example.final_project.mapper.AuthMapper;
 import com.example.final_project.utils.GenerateNumberUtil;
 import com.example.final_project.utils.PasswordValidator;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import jakarta.transaction.Transactional;
-import lombok.AllArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -53,6 +54,10 @@ public class AuthServiceImpl implements AuthService {
 
     // 2. Add this (it's used in userLogin but was missing)
     private final AuthTokenService authTokenService;
+    private final UserService userService;
+    private final WorkspaceMemberRepository workspaceMemberRepository;
+    private final WorkspaceRepository workspaceRepository;
+    private final FolderRepository folderRepository;
 
     @Value("${spring.mail.username}")
     private String adminMail;
@@ -127,6 +132,25 @@ public class AuthServiceImpl implements AuthService {
 
         user.setIsVerified(true);
         userRepository.save(user);
+
+        // ២. បង្កើត Default Workspace ឱ្យ User ភ្លាមៗ (UX: My Workspace)
+        Workspace defaultWorkspace = new Workspace();
+        defaultWorkspace.setName(user.getName() + "'s Workspace"); // ឧទាហរណ៍៖ Kimla's Workspace
+        // ប្រសិនបើ Entity Workspace របស់អ្នកមាន field ផ្សេងៗ កុំភ្លេច set ឱ្យវាផង
+        defaultWorkspace = workspaceRepository.save(defaultWorkspace);
+
+        // ៣. បន្ថែម User នោះជា OWNER ក្នុង Workspace ថ្មីនេះ
+        WorkspaceMember member = new WorkspaceMember();
+        member.setUser(user);
+        member.setWorkspace(defaultWorkspace);
+        member.setRole("OWNER");
+        workspaceMemberRepository.save(member);
+
+        // ៤. បង្កើត Default Folder (ឧទាហរណ៍៖ General Folder)
+        Folder defaultFolder = new Folder();
+        defaultFolder.setName("General");
+        defaultFolder.setWorkspace(defaultWorkspace); // ភ្ជាប់ទៅកាន់ Workspace ដែលទើបបង្កើត
+        folderRepository.save(defaultFolder);
 
         return BaseMessage.builder().message("Your account has been verified.").build();
     }

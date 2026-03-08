@@ -44,6 +44,7 @@ dependencies {
 	// Mail
 	implementation 'org.springframework.boot:spring-boot-starter-mail'
 
+
 	// Lombok
 	compileOnly 'org.projectlombok:lombok'
 	annotationProcessor 'org.projectlombok:lombok'
@@ -53,6 +54,17 @@ dependencies {
 	annotationProcessor 'org.mapstruct:mapstruct-processor:1.5.5.Final'
 	annotationProcessor 'org.projectlombok:lombok-mapstruct-binding:0.2.0'
 
+	// Spring Kafka
+	implementation 'org.springframework.kafka:spring-kafka'
+
+	// ប្រសិនបើអ្នកចង់ប្រើ JSON Serialization (DTO -> Kafka)
+	implementation 'com.fasterxml.jackson.core:jackson-databind'
+
+	// (Optional) សម្រាប់ប្រើ Redis Lock (Redisson) ដែលយើងបាននិយាយមុន
+	implementation 'org.redisson:redisson:3.43.0'
+	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+
+	implementation 'org.springframework.boot:spring-boot-starter-json'
 	// Test
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-security-test'
