@@ -2,6 +2,7 @@ package com.example.final_project.features.auth;
 
 import com.example.final_project.base.BaseMessage;
 import com.example.final_project.features.auth.dto.*;
+import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.mail.MessagingException;
 import jakarta.validation.Valid;
 import lombok.AllArgsConstructor;
@@ -11,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @AllArgsConstructor
 @RequestMapping("/api/v1/auth")
+@Hidden
 public class AuthController {
     private final AuthService authService;
 

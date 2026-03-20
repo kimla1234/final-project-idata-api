@@ -25,7 +25,8 @@ public class Folder extends Auditable {
     @JoinColumn(name = "workspace_id", nullable = false)
     private Workspace workspace;
 
+
     @OneToMany(mappedBy = "folder", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<Tenant> tenants;
+    private List<ApiScheme> apiSchemes;
 
 }

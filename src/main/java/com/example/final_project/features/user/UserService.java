@@ -10,4 +10,5 @@ public interface UserService   {
     UserResponse findOwnProfile(Jwt jwt);
     UserResponse updateUserByUuid(String uuid, UserUpdateRequest userUpdateRequest, Jwt jwt);
 
+    void followUser(String uuid, Jwt jwt);
 }

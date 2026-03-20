@@ -14,12 +14,13 @@ public record UserUpdateRequest(
         LocalDate dob,
 
         String profileImage,
+        String coverImage,
 
         String phone,
 
-        String country,
+        String address
 
-        String city
+
 
 ) {
 }

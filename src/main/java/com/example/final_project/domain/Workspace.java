@@ -30,9 +30,8 @@ public class Workspace extends Auditable {
     @OneToMany(mappedBy = "workspace", cascade = CascadeType.ALL)
     private List<Folder> folders;
 
-    // Workspace មួយអាចមាន Tenant ច្រើន
-    @OneToMany(mappedBy = "workspace", cascade = CascadeType.ALL)
-    private List<Tenant> tenants;
+    @Column(unique = true, nullable = false)
+    private String projectKey;
 
     @Enumerated(EnumType.STRING)
     private WorkspaceRole role; // OWNER, ADMIN, etc.

@@ -1,21 +1,35 @@
 package com.example.final_project.features.woekspace;
 
 import com.example.final_project.domain.*;
-import com.example.final_project.features.campaign.CampaignRepository;
+import com.example.final_project.features.apiScheme.ApiSchemeRepository;
 import com.example.final_project.features.folder.FolderRepository;
 import com.example.final_project.features.user.UserRepository;
 import com.example.final_project.features.woekspace.dto.*;
 import com.example.final_project.mapper.WorkspaceMapper;
-import com.nimbusds.jwt.JWT;
+import jakarta.mail.MessagingException;
+import jakarta.mail.internet.MimeMessage;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.mail.javamail.JavaMailSender;
+import jakarta.mail.MessagingException;
+import jakarta.mail.internet.MimeMessage;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
+import org.thymeleaf.TemplateEngine;
+import org.thymeleaf.context.Context; // 🎯 ប្រយ័ត្ន Import ខុស Context របស់ Class ផ្សេង
+import org.springframework.beans.factory.annotation.Value;
 
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -24,12 +38,19 @@ public class WorkspaceServiceImpl implements WorkspaceService {
     private final WorkspaceMapper workspaceMapper;
     private final WorkspaceMemberRepository workspaceMemberRepository;
     private final UserRepository userRepository;
-    private final CampaignRepository campaignRepository;
     private final PasswordEncoder passwordEncoder;
     private final FolderRepository folderRepository;
+    private final InvitationRepository invitationRepository;
+    private final ApiSchemeRepository apiSchemeRepository;
+
+    private final JavaMailSender javaMailSender;
+    private final TemplateEngine templateEngine;
+
+    @Value("${spring.mail.username}")
+    private String adminMail;
 
     @Override
-    @Transactional // បន្ថែម Transactional ដើម្បីធានាថាបើបង្កើត Folder បរាជ័យ Workspace ក៏មិនត្រូវបង្កើតដែរ
+    @Transactional
     public WorkspaceResponse createWorkspace(WorkspaceCreateRequest workspaceCreateRequest, Jwt jwt) {
         String email = jwt.getClaimAsString("sub");
         User user = userRepository.findByEmail(email)
@@ -37,6 +58,8 @@ public class WorkspaceServiceImpl implements WorkspaceService {
 
         // ១. បង្កើត និងរក្សាទុក Workspace
         Workspace workspace = workspaceMapper.fromCreateRequest(workspaceCreateRequest);
+        String randomKey = "p-" + UUID.randomUUID().toString().substring(0, 8);
+        workspace.setProjectKey(randomKey);
         Workspace savedWorkspace = workspaceRepository.save(workspace);
 
         // ២. បង្កើត Record សមាជិកភាព និងកំណត់សិទ្ធិជា OWNER
@@ -46,15 +69,91 @@ public class WorkspaceServiceImpl implements WorkspaceService {
         member.setRole("OWNER");
         workspaceMemberRepository.save(member);
 
-        // ៣. បង្កើត Default Folder ស្វ័យប្រវត្តិ
-        Folder defaultFolder = new Folder();
-        defaultFolder.setName("General"); // ឬដាក់ឈ្មោះអ្វីដែលអ្នកចង់បាន
-        defaultFolder.setWorkspace(savedWorkspace);
-        // ប្រសិនបើ Folder Entity របស់អ្នកមាន field ផ្សេងៗដូចជា createdAt សូមកំណត់នៅទីនេះ
-        folderRepository.save(defaultFolder);
+        // ៣. បង្កើត Default Auth Service (បញ្ជូន user ទៅជាមួយដើម្បីបំពេញ owner_id)
+        createDefaultAuthService(savedWorkspace, user);
+
+        // ៤. បង្កើត Folder "General" ស្វ័យប្រវត្តិ
+        Folder generalFolder = new Folder();
+        generalFolder.setName("General");
+        generalFolder.setWorkspace(savedWorkspace);
+        folderRepository.save(generalFolder);
 
         return workspaceMapper.toResponse(savedWorkspace);
     }
+
+
+    private void createDefaultAuthService(Workspace workspace, User user) {
+        // ១. ទាញយក Project Key (ត្រូវប្រាកដថា workspace key មិន Null)
+        String pKey = workspace.getProjectKey();
+
+        // ២. បង្កើត Swagger JSON ឱ្យត្រូវនឹង Path engine-{projectKey}
+        String authSwaggerJson = """
+    {
+      "openapi": "3.0.0",
+      "info": {
+        "title": "Auth Service API",
+        "description": "API សម្រាប់គ្រប់គ្រងការចុះឈ្មោះ និងចូលប្រើប្រាស់ (Dynamic JWT)",
+        "version": "1.0.0"
+      },
+      "servers": [
+        {
+          "url": "http://localhost:8081",
+          "description": "Local server"
+        }
+      ],
+      "paths": {
+        "/api/v1/engine-%s/auth/register": {
+          "post": {
+            "tags": ["Authentication"],
+            "summary": "Register new user",
+            "responses": { "201": { "description": "User created" } }
+          }
+        },
+        "/api/v1/engine-%s/auth/login": {
+          "post": {
+            "tags": ["Authentication"],
+            "summary": "Login to get tokens",
+            "responses": { "200": { "description": "Login success" } }
+          }
+        }
+      }
+    }
+    """.formatted(pKey, pKey);
+
+        // ៣. បង្កើត Folder "Auth Service" ជាមុនសិន
+        Folder folder = new Folder();
+        folder.setName("Auth Service");
+        folder.setWorkspace(workspace);
+        Folder savedFolder = folderRepository.save(folder);
+
+        // ៤. បង្កើត ApiScheme ថ្មី
+        ApiScheme scheme = new ApiScheme();
+        scheme.setName("auth");
+        scheme.setType("AUTH");// 🎯 ដាក់ឈ្មោះ "auth" ដើម្បីឱ្យវា Match ជាមួយ {slug} ក្នុង Controller
+        scheme.setWorkspace(workspace);
+        scheme.setFolder(savedFolder);
+        scheme.setOwner(user);
+        scheme.setApiKey("sk_live_" + UUID.randomUUID().toString().replace("-", ""));
+
+        // 🎯 កំណត់ Endpoint URL តាមទម្រង់ engine-projectKey/slug
+        scheme.setEndpointUrl("/api/v1/engine-" + pKey + "/auth");
+
+        scheme.setDefinition(authSwaggerJson);
+
+        // ៥. បំពេញ Default Values សម្រាប់ Not-Null Constraints
+        scheme.setCreatedAt(LocalDateTime.now());
+        scheme.setUpdatedAt(LocalDateTime.now());
+        scheme.setIsPublic(false);
+        scheme.setIsPublished(false);
+        scheme.setForkCount(0);
+        scheme.setViewCount(0);
+
+        // បើមាន field ផ្សេងទៀតដែលជាប់ Not Null ត្រូវ set ឱ្យអស់នៅទីនេះ
+
+        // ៦. រក្សាទុកចូល Database
+        apiSchemeRepository.save(scheme);
+    }
+
     @Override
     public List<WorkspaceResponse> getMyWorkspaces(Jwt jwt) {
         // ត្រូវប្រើ "sub" ឱ្យដូចគ្នាទៅនឹងពេល Create (iss គឺជា Identity Provider មិនមែន Email ទេ)
@@ -84,40 +183,52 @@ public class WorkspaceServiceImpl implements WorkspaceService {
     @Transactional
     public void inviteMember(Integer workspaceId, WorkspaceInviteRequest request, Jwt jwt) {
         String inviterEmail = jwt.getClaimAsString("sub");
-
+        String targetEmail = request.email().trim().toLowerCase();
 
         // ១. ឆែកសិទ្ធិអ្នក Invite (ត្រូវតែជា OWNER ឬ ADMIN)
         WorkspaceMember inviter = workspaceMemberRepository.findByWorkspaceIdAndUserEmail(workspaceId, inviterEmail)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "អ្នកមិនមែនជាសមាជិកនៃ Workspace នេះទេ"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Access Denied"));
 
-        if (!List.of("OWNER", "ADMIN").contains(inviter.getRole())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "អ្នកគ្មានសិទ្ធិផ្ញើការអញ្ជើញឡើយ");
-        }
+        Workspace workspace = inviter.getWorkspace();
 
-        // ២. រកមើល User ដែលត្រូវ Invite តាម Email
-        User invitee = userRepository.findByEmail(request.email())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "រកមិនឃើញ User ដែលមាន Email នេះឡើយ"));
-
-        // ៣. ឆែកមើលក្រែងលោគាត់ជាសមាជិករួចហើយ
-        boolean isAlreadyMember = workspaceMemberRepository.existsByWorkspaceIdAndUserId(workspaceId, invitee.getId());
+        // ២. ឆែកមើលថា តើគេជាសមាជិករួចហើយ ឬនៅ?
+        // (បើជាសមាជិករួចហើយ មិនបាច់ Invite ទៀតទេ)
+        boolean isAlreadyMember = workspaceMemberRepository.existsByWorkspaceIdAndUserEmail(workspaceId, targetEmail);
         if (isAlreadyMember) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "User នេះជាសមាជិករួចរាល់ហើយ");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "User is already a member of this workspace.");
         }
 
-        // ៤. បង្កើតសមាជិកភាពថ្មី
-        WorkspaceMember newMember = new WorkspaceMember();
-        newMember.setUser(invitee);
-        newMember.setWorkspace(inviter.getWorkspace());
+        // ៣. ឆែកមើលថា តើមានការ Invite ដែលមិនទាន់ Expire មែនទេ? (ការពារការផ្ញើដដែលៗ)
+        Optional<Invitation> existingInvite = invitationRepository.findByWorkspaceIdAndEmail(workspaceId, targetEmail);
+        if (existingInvite.isPresent() && existingInvite.get().getExpiryDate().isAfter(LocalDateTime.now())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "An active invitation has already been sent to this email.");
+        }
 
+        // ៤. បង្កើត Invitation Record (ទុកជា Pending Status)
+        Invitation invitation = existingInvite.orElse(new Invitation());
+        invitation.setEmail(targetEmail);
+        invitation.setRole(request.role().toUpperCase());
+        invitation.setWorkspace(workspace);
+        invitation.setToken(UUID.randomUUID().toString());
+        invitation.setExpiryDate(LocalDateTime.now().plusDays(7)); // ឱ្យសុពលភាព ៧ ថ្ងៃ
+        invitationRepository.save(invitation);
+
+        // ៥. ផ្ញើ Email Invitation
         try {
-            // បំប្លែង String ពី Request (ADMIN, EDITOR, VIEWER) ទៅជា Enum WorkspaceRole
-            WorkspaceRole roleEnum = WorkspaceRole.valueOf(request.role().toUpperCase());
-            newMember.setRole(String.valueOf(roleEnum));
-        } catch (IllegalArgumentException e) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "ប្រភេទ Role មិនត្រឹមត្រូវ៖ " + request.role());
+            sendInvitationEmail(targetEmail, workspace.getName(), workspaceId);
+        } catch (MessagingException e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to send email");
         }
+    }
 
-        workspaceMemberRepository.save(newMember);
+
+
+    private void saveWorkspaceMember(User user, Workspace workspace, String role) {
+        WorkspaceMember member = new WorkspaceMember();
+        member.setUser(user);
+        member.setWorkspace(workspace);
+        member.setRole(role.toUpperCase());
+        workspaceMemberRepository.save(member);
     }
 
     @Override
@@ -149,26 +260,32 @@ public class WorkspaceServiceImpl implements WorkspaceService {
     @Override
     public List<MemberResponse> getWorkspaceMembers(Integer workspaceId, Jwt jwt) {
         String email = jwt.getClaimAsString("sub");
+        checkWorkspaceAccess(workspaceId, jwt); // ឆែកសិទ្ធិអ្នកមើល
 
-        // ១. ឆែកមើលថាអ្នកសួរ ជាសមាជិកនៃ Workspace ហ្នឹងមែនអត់
-        boolean isMember = workspaceMemberRepository.existsByWorkspaceIdAndUserEmail(workspaceId, email);
-        if (!isMember) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "អ្នកគ្មានសិទ្ធិមើលសមាជិកក្នុង Workspace នេះទេ");
-        }
-
-        // ២. ទាញយកសមាជិកទាំងអស់ក្នុង Workspace នោះ
+        // ១. ទាញសមាជិកដែលមានស្រាប់
         List<WorkspaceMember> members = workspaceMemberRepository.findAllByWorkspaceId(workspaceId);
-
-        // ៣. បំប្លែងពី WorkspaceMember Entity ទៅជា MemberResponse DTO
-        return members.stream()
+        List<MemberResponse> responseList = new java.util.ArrayList<>(members.stream()
                 .map(m -> new MemberResponse(
-                        m.getId(),
+                        m.getId().intValue(),
                         m.getUser().getName(),
                         m.getUser().getEmail(),
-                        m.getRole(),
-                        m.getUser().getProfileImage() // កែសម្រួលតាម Entity របស់អ្នក
-                ))
-                .toList();
+                        m.getRole(), // ឧទាហរណ៍: OWNER, ADMIN
+                        m.getUser().getProfileImage()
+                )).toList());
+
+        // ២. ទាញអ្នកដែលកំពុង Pending (Invitations) បន្ថែមចូលក្នុង List
+        List<Invitation> pendingInvites = invitationRepository.findByWorkspaceId(workspaceId);
+        pendingInvites.forEach(invite -> {
+            responseList.add(new MemberResponse(
+                    null, // គ្មាន Member ID ទេព្រោះមិនទាន់ចូល
+                    "Pending User",
+                    invite.getEmail(),
+                    invite.getRole() + " (PENDING)", // បញ្ជាក់ថា Pending
+                    "default-avatar.png"
+            ));
+        });
+
+        return responseList;
     }
 
     @Override
@@ -230,24 +347,7 @@ public class WorkspaceServiceImpl implements WorkspaceService {
 
     @Override
     public WorkspaceStatsResponse getAllCampaigns(Integer workspaceId, Jwt jwt) {
-        checkWorkspaceAccess(workspaceId, jwt);
-
-        List<Campaign> campaigns = campaignRepository.findAllByWorkspaceId(workspaceId);
-
-        long totalCampaigns = campaigns.size();
-        long totalSuccess = campaigns.stream().mapToLong(Campaign::getSuccessCount).sum();
-        long totalFailure = campaigns.stream().mapToLong(Campaign::getFailureCount).sum();
-        long totalEmails = totalSuccess + totalFailure;
-
-        double successRate = totalEmails > 0 ? (double) totalSuccess / totalEmails * 100 : 0;
-
-        return new WorkspaceStatsResponse(
-                totalCampaigns,
-                totalEmails,
-                totalSuccess,
-                totalFailure,
-                successRate
-        );
+        return null;
     }
 
     private void checkWorkspaceAccess(Integer workspaceId, Jwt jwt) {
@@ -257,4 +357,107 @@ public class WorkspaceServiceImpl implements WorkspaceService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "អ្នកគ្មានសិទ្ធិចូលប្រើប្រាស់ Workspace នេះទេ");
         }
     }
+
+    // ក្នុង WorkspaceServiceImpl.java
+
+    @Transactional
+    @Override
+    public void joinWorkspace(Integer workspaceId, Jwt jwt) {
+        String email = jwt.getClaimAsString("sub").toLowerCase();
+
+        // ១. ស្វែងរកការអញ្ជើញក្នុង Table invitations
+        List<Invitation> invitations = invitationRepository.findAllByEmail(email);
+
+        // ចាប់យក Invitation ណាដែលត្រូវនឹង Workspace ID នេះ
+        Invitation currentInvite = invitations.stream()
+                .filter(i -> i.getWorkspace().getId().equals(workspaceId))
+                .findFirst()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "រកមិនឃើញការអញ្ជើញសម្រាប់ Workspace នេះទេ"));
+
+        // ២. ឆែកមើលសុពលភាព (Expiry Date)
+        if (currentInvite.getExpiryDate().isBefore(LocalDateTime.now())) {
+            invitationRepository.delete(currentInvite);
+            throw new ResponseStatusException(HttpStatus.GONE, "ការអញ្ជើញនេះបានហួសសុពលភាពហើយ");
+        }
+
+        // ៣. បង្កើតសមាជិកភាពពិតប្រាកដ
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "រកមិនឃើញ User ឡើយ"));
+
+        saveWorkspaceMember(user, currentInvite.getWorkspace(), currentInvite.getRole());
+
+        // ៤. លុប Pending Invitation ចោល (ព្រោះក្លាយជាសមាជិកពេញសិទ្ធិហើយ)
+        invitationRepository.delete(currentInvite);
+    }
+    // 🎯 កែសម្រួល Method ផ្ញើ Email ឱ្យបានត្រឹមត្រូវ
+    private void sendInvitationEmail(String targetEmail, String workspaceName, Integer workspaceId) throws MessagingException {
+        MimeMessage message = javaMailSender.createMimeMessage();
+        MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+        Context thymeleafContext = new Context(); // ប្រើ Thymeleaf Context
+        thymeleafContext.setVariable("workspaceName", workspaceName);
+        String joinLink = "http://localhost:3000/join/" + workspaceId;
+        thymeleafContext.setVariable("joinLink", joinLink);
+
+        String htmlTemplate = templateEngine.process("auth/workspace/invite-mail", thymeleafContext);
+
+        helper.setTo(targetEmail);
+        helper.setFrom(adminMail);
+        helper.setSubject("You are invited to join " + workspaceName + " workspace");
+        helper.setText(htmlTemplate, true);
+
+        javaMailSender.send(message);
+    }
+
+
+    // បន្ថែមក្នុង WorkspaceServiceImpl.java
+
+    // បន្ថែមចូលក្នុង WorkspaceServiceImpl.java
+    @Override
+    @Transactional
+    public void removeMember(Integer workspaceId, Integer memberId, Jwt jwt) {
+        String currentUserEmail = jwt.getClaimAsString("sub");
+
+        // ១. ឆែកមើលថាអ្នកដែលកំពុងលុបគេហ្នឹង ជា OWNER ឬ ADMIN ក្នុង Workspace ហ្នឹងមែនអត់
+        WorkspaceMember requester = workspaceMemberRepository
+                .findByWorkspaceIdAndUserEmail(workspaceId, currentUserEmail)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Access Denied"));
+
+        if (!requester.getRole().equals("OWNER") && !requester.getRole().equals("ADMIN")) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "មានតែ Owner ឬ Admin ទេដែលអាចលុបសមាជិកបាន");
+        }
+
+        // ២. ស្វែងរក Row សមាជិកដែលត្រូវលុប
+        WorkspaceMember memberToDelete = workspaceMemberRepository
+                .findById(Long.valueOf(memberId))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "រកមិនឃើញសមាជិកនេះឡើយ"));
+
+        // ៣. ការពារកុំឱ្យលុប OWNER (Owner លុបខ្លួនឯងអត់បានទេ ត្រូវលុប Workspace ចោលតែម្តង)
+        if (memberToDelete.getRole().equals("OWNER")) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "មិនអាចលុបម្ចាស់ Workspace បានទេ");
+        }
+
+        // ៤. លុបចេញពី Database
+        workspaceMemberRepository.delete(memberToDelete);
+    }
+
+    @Override
+    @Transactional
+    public void revokeInvitation(Integer workspaceId, String email, Jwt jwt) {
+        String currentUserEmail = jwt.getClaimAsString("sub");
+
+        // ១. ឆែកមើលថាអ្នកលុប ជា OWNER ឬ ADMIN មែនអត់
+        WorkspaceMember requester = workspaceMemberRepository
+                .findByWorkspaceIdAndUserEmail(workspaceId, currentUserEmail)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Access Denied"));
+
+        if (!requester.getRole().equals("OWNER") && !requester.getRole().equals("ADMIN")) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "មានតែ Owner ឬ Admin ទេដែលអាចលុបការអញ្ជើញបាន");
+        }
+
+        // ២. លុប Invitation ចេញពី Database (លុបតាម workspaceId និង email)
+        invitationRepository.deleteByWorkspaceIdAndEmail(workspaceId, email);
+    }
+
+
 }

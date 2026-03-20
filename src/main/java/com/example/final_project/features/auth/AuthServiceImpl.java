@@ -9,6 +9,7 @@ import com.example.final_project.features.token.TokenRepository;
 import com.example.final_project.features.user.RoleRepository;
 import com.example.final_project.features.user.UserRepository;
 import com.example.final_project.features.user.UserService;
+import com.example.final_project.features.woekspace.InvitationRepository;
 import com.example.final_project.features.woekspace.WorkspaceMemberRepository;
 import com.example.final_project.features.woekspace.WorkspaceRepository;
 import com.example.final_project.mapper.AuthMapper;
@@ -58,6 +59,8 @@ public class AuthServiceImpl implements AuthService {
     private final WorkspaceMemberRepository workspaceMemberRepository;
     private final WorkspaceRepository workspaceRepository;
     private final FolderRepository folderRepository;
+    private final InvitationRepository invitationRepository;
+    private final WorkspaceMemberRepository memberRepository;
 
     @Value("${spring.mail.username}")
     private String adminMail;
@@ -65,9 +68,8 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     @Override
     public BaseMessage register(RegisterRequest registerRequest) throws MessagingException {
-        String verifyCode = GenerateNumberUtil.generateCodeNumber();
 
-        User user = authMapper.mapFromRegisterCreateRequest(registerRequest);
+        // ១. ឆែកមើល Email ថាមានក្នុង System ហើយឬនៅ
         if (userRepository.existsByEmail(registerRequest.email())) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
@@ -75,13 +77,19 @@ public class AuthServiceImpl implements AuthService {
             );
         }
 
+        // ២. ផ្ទៀងផ្ទាត់ Password និង Confirm Password
         if (!registerRequest.password().equals(registerRequest.confirmPassword())) {
             return BaseMessage.builder().message("Password and Confirm Password must be same").build();
         }
 
+        // ៣. ផ្ទៀងផ្ទាត់កម្រិតសុវត្ថិភាព Password
         if (!PasswordValidator.validate(registerRequest.password())) {
             return BaseMessage.builder().message("Password must contain at least 8 characters, 1 uppercase, 1 lowercase, 1 number and 1 special character").build();
         }
+
+        // ៤. រៀបចំទិន្នន័យ User ថ្មី
+        String verifyCode = GenerateNumberUtil.generateCodeNumber();
+        User user = authMapper.mapFromRegisterCreateRequest(registerRequest);
 
         user.setPassword(passwordEncoder.encode(registerRequest.password()));
         user.setUuid(UUID.randomUUID().toString());
@@ -89,17 +97,35 @@ public class AuthServiceImpl implements AuthService {
         user.setIsVerified(false);
         user.setIsBlock(false);
         user.setVerificationCode(verifyCode);
-        // set default role USER when create user
-        List<Role> roleList = new ArrayList<>();
+
+        // ៥. កំណត់ Default Role (USER)
         Role role = roleRepository.findByName("USER")
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
                         "User role does not exist!"
                 ));
+        user.setRoles(new ArrayList<>(List.of(role)));
 
-        roleList.add(role);
-        user.setRoles(roleList);
+        // ៦. រក្សាទុក User ចូលក្នុង Database (ដើម្បីយក ID ទៅប្រើបន្ត)
+        userRepository.save(user);
 
+        // 🎯 ៧. ឆែកមើល Pending Invitations (Logic ដែលបងចង់បាន)
+        List<Invitation> pendingInvites = invitationRepository.findAllByEmail(user.getEmail().toLowerCase());
+
+        if (!pendingInvites.isEmpty()) {
+            pendingInvites.forEach(invite -> {
+                WorkspaceMember member = new WorkspaceMember();
+                member.setUser(user);
+                member.setWorkspace(invite.getWorkspace());
+                member.setRole(invite.getRole()); // Role តាមដែលគេបាន Invite (ADMIN/EDITOR/VIEWER)
+                workspaceMemberRepository.save(member);
+            });
+
+            // លុបការអញ្ជើញចោល ព្រោះគាត់បានក្លាយជាសមាជិកហើយ
+            invitationRepository.deleteAll(pendingInvites);
+        }
+
+        // ៨. រៀបចំផ្ញើ Email Verification
         MimeMessage message = javaMailSender.createMimeMessage();
         MimeMessageHelper helper = new MimeMessageHelper(message);
 
@@ -111,12 +137,12 @@ public class AuthServiceImpl implements AuthService {
         helper.setFrom(adminMail);
         helper.setSubject("IFinder verify code");
         helper.setText(htmlTemplate, true);
-        javaMailSender.send(message);
-        userRepository.save(user);
 
+        javaMailSender.send(message);
 
         return BaseMessage.builder().message("Verify code has been send to your email. Please check your email.").build();
     }
+
 
     @Override
     public BaseMessage verifyUserAccount(VerifyCodeRequest verifyCodeRequest) {

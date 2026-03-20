@@ -2,6 +2,7 @@ package com.example.final_project.features.folder;
 
 import com.example.final_project.features.folder.dto.FolderRequest;
 import com.example.final_project.features.folder.dto.FolderResponse;
+import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -14,6 +15,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/workspaces/{workspaceId}/folders")
 @RequiredArgsConstructor
+@Hidden
 public class FolderController {
     private final FolderService folderService;
     // ១. បង្កើត Folder ថ្មីនៅក្នុង Workspace

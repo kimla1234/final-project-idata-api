@@ -3,6 +3,7 @@ package com.example.final_project.features.woekspace;
 import com.example.final_project.domain.User;
 import com.example.final_project.features.woekspace.dto.*;
 import com.nimbusds.jwt.JWT;
+import jakarta.transaction.Transactional;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 
@@ -24,4 +25,10 @@ public interface WorkspaceService {
     void deleteWorkspace(Integer id, DeleteWorkspaceRequest request, Jwt jwt);
     WorkspaceResponse updateWorkspace(Integer id, WorkspaceUpdateRequest request, Jwt jwt);
     WorkspaceStatsResponse getAllCampaigns(Integer workspaceId, Jwt jwt);
+
+    @Transactional
+    void joinWorkspace(Integer workspaceId, Jwt jwt);
+
+    void removeMember(Integer id, Integer memberId, Jwt jwt);
+    void revokeInvitation(Integer workspaceId, String email, Jwt jwt);
 }

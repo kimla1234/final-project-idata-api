@@ -15,7 +15,6 @@ public interface FolderMapper {
     // យើង ignore id ព្រោះវាជា Auto-generate
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "workspace", ignore = true)
-    @Mapping(target = "tenants", ignore = true)
     Folder fromRequest(FolderRequest request);
 
     // បំប្លែងពី Entity ទៅជា Response DTO (ប្រើពេល Return ទៅ Frontend)

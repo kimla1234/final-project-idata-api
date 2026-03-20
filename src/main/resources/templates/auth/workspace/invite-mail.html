@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f9; margin: 0; padding: 0; }
+        .container { max-width: 600px; margin: 20px auto; background-color: #ffffff; border-radius: 12px; overflow: hidden; shadow: 0 4px 12px rgba(0,0,0,0.1); border: 1px solid #e1e8ed; }
+        .header { background-color: #f07c54; padding: 30px; text-align: center; color: white; }
+        .content { padding: 40px 30px; text-align: center; color: #333333; }
+        .workspace-name { color: #f07c54; font-weight: bold; font-size: 20px; }
+        .button { display: inline-block; background-color: #f07c54; color: #ffffff !important; padding: 14px 30px; border-radius: 8px; text-decoration: none; font-weight: bold; margin-top: 25px; transition: background-color 0.3s; }
+        .footer { background-color: #f8f9fa; padding: 20px; text-align: center; font-size: 12px; color: #777777; border-top: 1px solid #eeeeee; }
+        .note { font-size: 13px; color: #888888; margin-top: 20px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1 style="margin: 0; font-size: 24px;">Workspace Invitation</h1>
+    </div>
+
+    <div class="content">
+        <h2 style="margin-top: 0;">Hello there! 👋</h2>
+        <p style="font-size: 16px; line-height: 1.6;">
+            You've been invited to join and collaborate on the
+            <span class="workspace-name" th:text="${workspaceName}">Project Name</span>
+            workspace.
+        </p>
+        <p style="font-size: 16px;">Ready to start working with the team?</p>
+
+        <a th:href="${joinLink}" class="button">Accept Invitation & Join</a>
+
+        <p class="note">
+            If the button doesn't work, copy and paste this link into your browser:<br>
+            <span style="color: #007bff; word-break: break-all;" th:text="${joinLink}">http://link-to-join.com</span>
+        </p>
+    </div>
+
+    <div class="footer">
+        <p>This invitation was sent by your team manager. If you weren't expecting this, you can safely ignore this email.</p>
+        <p>&copy; 2024 YourProjectName. All rights reserved.</p>
+    </div>
+</div>
+</body>
+</html>

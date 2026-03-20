@@ -3,10 +3,7 @@ package com.example.final_project.domain;
 import com.example.final_project.audit.Auditable;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -17,11 +14,13 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 @Table(name="users")
+@EqualsAndHashCode(onlyExplicitlyIncluded = true, callSuper = false)
 public class User extends Auditable {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
+    @EqualsAndHashCode.Include
     @Column(nullable = false, unique = true)
     private String uuid;
 
@@ -44,6 +43,8 @@ public class User extends Auditable {
     private String phone ;
 
     private String profileImage;
+
+    private String coverImage;
 
     @Column(name = "is_delete", nullable = false)
     private Boolean isDelete = false;
@@ -69,10 +70,18 @@ public class User extends Auditable {
             inverseJoinColumns = @JoinColumn(name = "workspace_id"))
     private List<Workspace> workspaces;
 
-    // User ម្នាក់អាចជាអ្នកបង្កើត Message ច្រើន
-    @OneToMany(mappedBy = "sender")
-    private List<Message> messages;
 
+    @ManyToMany
+    @JoinTable(
+            name = "user_followers",
+            joinColumns = @JoinColumn(name = "user_id"),      // ID របស់អ្នកដែលត្រូវគេ Follow
+            inverseJoinColumns = @JoinColumn(name = "follower_id") // ID របស់អ្នកដែលទៅចុច Follow គេ
+    )
+    private List<User> followers;
+
+    // បញ្ជីអ្នកដែលយើងទៅ Follow គេ (ភ្ញៀវ)
+    @ManyToMany(mappedBy = "followers")
+    private List<User> following;
 
     public void setIsDelete(boolean b) {
     }

@@ -1,7 +1,10 @@
 package com.example.final_project.features.folder;
 
+import com.example.final_project.domain.ApiScheme;
 import com.example.final_project.domain.Folder;
 import com.example.final_project.domain.Workspace;
+import com.example.final_project.features.ApiData.ApiDataRepository;
+import com.example.final_project.features.apiScheme.ApiSchemeRepository;
 import com.example.final_project.features.folder.dto.FolderRequest;
 import com.example.final_project.features.folder.dto.FolderResponse;
 import com.example.final_project.features.woekspace.WorkspaceMemberRepository;
@@ -11,6 +14,7 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -24,6 +28,9 @@ public class FolderServiceImpl implements FolderService {
     private final WorkspaceRepository workspaceRepository;
     private final WorkspaceMemberRepository workspaceMemberRepository;
     private final FolderMapper folderMapper;
+    private  final ApiDataRepository apiDataRepository;
+    private final ApiSchemeRepository apiSchemeRepository;
+    private final ApiSchemeRepository   analyticsRepository;
 
     @Override
     @Transactional
@@ -78,10 +85,35 @@ public class FolderServiceImpl implements FolderService {
     }
 
     @Override
+    @Transactional // 🎯 សំខាន់ណាស់៖ បើលុបមិនអស់ វានឹង Rollback វិញមិនឱ្យខូច Data
     public void deleteFolder(Integer folderId, Jwt jwt) {
-        if (!folderRepository.existsById(folderId)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Folder not found");
+        // ១. ស្វែងរក Folder ឱ្យឃើញសិន
+        Folder folder = folderRepository.findById(folderId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "រកមិនឃើញ Folder ឡើយ"));
+
+        // ២. ទាញយក ApiSchemes ទាំងអស់ដែលមាននៅក្នុង Folder នេះ
+        List<ApiScheme> schemes = apiSchemeRepository.findAllByFolderId(folderId);
+
+        try {
+            for (ApiScheme scheme : schemes) {
+                // 🎯 កម្ទេចទិន្នន័យកូនចៅរបស់ Schema នីមួយៗតាមលំដាប់
+
+                // ក. លុប Mock Data (ApiData)
+                apiDataRepository.deleteAllByApiSchemeId(scheme.getId());
+
+                // ខ. លុប Analytics
+                analyticsRepository.deleteById(scheme.getId());
+
+                // គ. លុប Schema ខ្លួនឯង
+                apiSchemeRepository.delete(scheme);
+            }
+
+            // ៣. បន្ទាប់ពីកូនចៅស្លាប់អស់ហើយ ទើបយើងអាចលុប Folder បានដោយសុវត្ថិភាព
+            folderRepository.delete(folder);
+
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
+                    "មិនអាចលុប Folder បានទេ ដោយសារបញ្ហាបច្ចេកទេស៖ " + e.getMessage());
         }
-        folderRepository.deleteById(folderId);
     }
 }

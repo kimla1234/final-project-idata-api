@@ -25,6 +25,10 @@ import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationProvider;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.UUID;
 
@@ -36,13 +40,16 @@ public class SecurityConfig {
     private final UserDetailsService userDetailsService;
     private final PasswordEncoder passwordEncoder;
     private final KeyUtil keyUtil;
+    private final DynamicApiKeyFilter dynamicApiKeyFilter;
+
 
 
 
     @Bean
     public DaoAuthenticationProvider daoAuthenticationProvider() {
-        // Inject userDetailsService directly into the constructor to resolve the IDE error
-        DaoAuthenticationProvider provider = new DaoAuthenticationProvider(userDetailsService);
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+        // ប្តូរពីការប្រើ Constructor មកប្រើ Setter បែបនេះវិញដើម្បីបាត់ Error
+        provider.setUserDetailsService(userDetailsService);
         provider.setPasswordEncoder(passwordEncoder);
         return provider;
     }
@@ -54,6 +61,25 @@ public class SecurityConfig {
         return provider;
     }
 
+    // ១. ថែម Bean នេះចូលក្នុង SecurityConfig
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+
+        // 🎯 ប្រើ patterns ជំនួស origins ធម្មតា ដើម្បីដោះស្រាយ Error 500
+        configuration.setAllowedOriginPatterns(java.util.List.of("*"));
+
+        configuration.setAllowedMethods(java.util.List.of("GET", "POST", "PUT","PATCH", "DELETE", "OPTIONS"));
+
+        // 🎯 ត្រូវតែមាន "x-api-key" ក្នុងជួរនេះ
+        configuration.setAllowedHeaders(java.util.List.of("Authorization", "Content-Type", "x-api-key", "Accept", "Origin"));
+
+        configuration.setAllowCredentials(true);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
+    }
 
 
     @Bean
@@ -61,10 +87,22 @@ public class SecurityConfig {
                                                    throws Exception {
 
         httpSecurity
-                .cors(Customizer.withDefaults())
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .csrf(csrf -> csrf.disable())
+                // 🎯 ចំណុចសំខាន់៖ ដាក់ ApiKeyFilter ឱ្យដើរមុន AuthorizationFilter
+                .addFilterBefore(dynamicApiKeyFilter, AuthorizationFilter.class)
                 .authorizeHttpRequests(request -> request
                         .requestMatchers("/api/v1/auth/**").permitAll()
-
+                        .requestMatchers("/api/v1/engine-*/**").permitAll()
+                        .requestMatchers("/api/v1/engine/**").permitAll()
+                        .requestMatchers("/api/v1/engine-**").permitAll()
+                        .requestMatchers(
+                                "/v3/api-docs/**",
+                                "/v3/api-docs.yaml",
+                                "/swagger-ui/**",
+                                "/swagger-ui.html"
+                        ).permitAll()
+                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**").permitAll()
                         //.requestMatchers(HttpMethod.GET,"/api/v1/users/**").authenticated()
                         .requestMatchers("/api/v1/users/me").authenticated() // OR if you use roles:
 
@@ -74,16 +112,22 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/v1/media/**").permitAll()
                         .requestMatchers("/media/**").permitAll()
 
+                        .requestMatchers(HttpMethod.GET, "/api/v1/api-schemes/public/**").permitAll()
+
+                        // កែពី hasAnyAuthority មក authenticated() វិញ
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/users/**").authenticated()
                         .requestMatchers(HttpMethod.GET,"/api/v1/users/*/admins/**").hasAuthority("SCOPE_admin:read")
-                        .requestMatchers(HttpMethod.PATCH,"/api/v1/users/**").hasAnyAuthority("SCOPE_admin:write","SCOPE_user:write")
-                        .requestMatchers(HttpMethod.PUT,"/api/v1/users/**").hasAuthority("SCOPE_admin:write")
 
                         .requestMatchers(HttpMethod.POST, "/v1/search/dataImport").hasAuthority("SCOPE_admin:write")
                         .requestMatchers("/v1/media/**").hasAnyAuthority("SCOPE_admin:write", "SCOPE_user:write")
                         .requestMatchers("/v1/video/**").permitAll()
 
                         .anyRequest().authenticated()
-                );
+                )
+        .oauth2ResourceServer(oauth2 -> oauth2
+                        .jwt(Customizer.withDefaults())
+                // បន្ថែមចំណុចនេះ ប្រសិនបើបងចង់ឱ្យវា Ignore ផ្លូវខ្លះ (Optional)
+        );
         // enable jwt security
         httpSecurity.oauth2ResourceServer(jwt -> jwt
                 .jwt(Customizer.withDefaults()));

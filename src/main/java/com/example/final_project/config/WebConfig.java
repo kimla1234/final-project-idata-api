@@ -21,10 +21,18 @@ public class WebConfig implements WebMvcConfigurer {
 
     @Override
     public void addCorsMappings(CorsRegistry registry) {
-        registry.addMapping("/**")
-                .allowedOrigins("http://localhost:3000") // ដាក់ឈ្មោះ Domain ឱ្យចំ
-                .allowedMethods("*")
-                .allowedHeaders("*")
-                .allowCredentials(true); // បើគ្មានបន្ទាត់នេះទេ នឹងជាប់ CORS និង 401 រហូត
+
+       // registry.addMapping("/**")
+                // 🎯 ប្រើ patterns ជំនួស origins ធម្មតា ដើម្បីដោះស្រាយ Error 500
+       //         .allowedOriginPatterns("*")
+
+                // 🎯 បញ្ជាក់ Header ឱ្យចំ ជាពិសេស x-api-key
+       //         .allowedHeaders("Authorization", "Content-Type", "x-api-key", "Accept", "Origin")
+
+                // កំណត់ Method ឱ្យច្បាស់លាស់ (ដក .allowedMethods("*") ចេញដើម្បីកុំឱ្យជាន់គ្នា)
+        //        .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+
+         //       .allowCredentials(true)
+         //       .maxAge(3600);
     }
 }

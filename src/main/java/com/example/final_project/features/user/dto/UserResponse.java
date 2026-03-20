@@ -14,14 +14,13 @@ public record UserResponse(
         LocalDate dob,
 
         String phone,
+        String address,
 
         String profileImage,
 
+        String coverImage,
+        Integer followersCount,
         List<String> roles,
-
-        String country,
-
-        String city,
 
         Boolean isBlock,
 

@@ -1,9 +1,9 @@
 package com.example.final_project.features.woekspace;
 
 import com.example.final_project.domain.Workspace;
-import com.example.final_project.features.campaign.MailingService;
 import com.example.final_project.features.user.UserService;
 import com.example.final_project.features.woekspace.dto.*;
+import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -17,9 +17,9 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/workspaces")
 @RequiredArgsConstructor
+@Hidden
 public class WorkspaceController {
     private final WorkspaceService workspaceService;
-    private final MailingService mailingService;
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -62,6 +62,12 @@ public class WorkspaceController {
         workspaceService.inviteMember(id, request, jwt);
     }
 
+    @PostMapping("/{id}/join")
+    public void joinWorkspace(@PathVariable Integer id, @AuthenticationPrincipal Jwt jwt) {
+        workspaceService.joinWorkspace(id, jwt);
+    }
+
+
     @GetMapping("/{id}/members")
     public List<MemberResponse> getWorkspaceMembers(
             @PathVariable Integer id,
@@ -99,6 +105,27 @@ public class WorkspaceController {
             @AuthenticationPrincipal Jwt jwt
     ) {
         workspaceService.updateMemberRole(id, memberId, request, jwt);
+    }
+
+    @DeleteMapping("/{id}/members/{memberId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void removeMember(
+            @PathVariable Integer id,        // workspaceId
+            @PathVariable Integer memberId,  // memberId
+            @AuthenticationPrincipal Jwt jwt
+    ) {
+        workspaceService.removeMember(id, memberId, jwt);
+    }
+
+
+    @DeleteMapping("/{id}/invitations")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void revokeInvitation(
+            @PathVariable Integer id,
+            @RequestParam String email,
+            @AuthenticationPrincipal Jwt jwt
+    ) {
+        workspaceService.revokeInvitation(id, email, jwt);
     }
 
 }
