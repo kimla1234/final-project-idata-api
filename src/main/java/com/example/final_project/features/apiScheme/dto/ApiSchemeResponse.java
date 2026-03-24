@@ -11,6 +11,7 @@ public record ApiSchemeResponse(
         Integer id,
         String name,
         String endpointUrl,
+
         String description,
 
         List<Map<String, Object>> properties,
@@ -50,6 +51,17 @@ public record ApiSchemeResponse(
 
         String apiKey
 ) {
+
+        public ApiSchemeResponse withEndpointUrl(String newUrl) {
+                return new ApiSchemeResponse(
+                        id, name, newUrl, description, properties, keys, isPublic,
+                        ownerName, ownerAvatar, ownerHandle, folderId, folderName,
+                        workspaceId, ownerUuid, forkCount, viewCount, totalRequests,
+                        parentId, parentName, isPublished, isFollowed,
+                        createdAt, updatedAt, lastModifiedBy, dataCount, apiKey
+                );
+        }
+
         public ApiSchemeResponse withIsFollowed(Boolean followedStatus) {
                 return new ApiSchemeResponse(
                         id, name, endpointUrl, description, properties, keys, isPublic,

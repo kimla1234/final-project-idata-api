@@ -30,11 +30,14 @@ public interface ApiSchemeRepository extends JpaRepository<ApiScheme, Integer> {
 
     Page<ApiScheme> findByIsPublishedTrue(Pageable pageable);
     Optional<ApiScheme> findByWorkspaceProjectKeyAndApiKey(String projectKey, String apiKey);
-    @Query("SELECT s FROM ApiScheme s WHERE s.workspace.projectKey = :projectKey AND s.name = :slug")
+    @Query("SELECT s FROM ApiScheme s WHERE s.workspace.projectKey = :projectKey " +
+            "AND s.endpointUrl LIKE %:slug")
     Optional<ApiScheme> findByProjectKeyAndSlug(
             @Param("projectKey") String projectKey,
             @Param("slug") String slug
     );
+    boolean existsByWorkspaceProjectKeyAndEndpointUrlEndingWith(String projectKey, String slug);
+
+
 
 }
-

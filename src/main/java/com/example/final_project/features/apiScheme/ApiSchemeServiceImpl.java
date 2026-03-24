@@ -55,7 +55,7 @@ public class ApiSchemeServiceImpl implements ApiSchemeService {
 
         String projectKey = folder.getWorkspace().getProjectKey();
 
-        if (apiSchemeRepository.existsByWorkspaceProjectKeyAndEndpointUrlContaining(projectKey, slug)) {
+        if (apiSchemeRepository.existsByWorkspaceProjectKeyAndEndpointUrlEndingWith(projectKey, slug)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Slug '" + slug + "' មានរួចហើយក្នុង Project របស់អ្នក");
         }
 
@@ -84,6 +84,7 @@ public class ApiSchemeServiceImpl implements ApiSchemeService {
 
         return apiSchemeMapper.toResponse(savedScheme);
     }
+
 
     @Override
     @Transactional
@@ -276,45 +277,65 @@ public class ApiSchemeServiceImpl implements ApiSchemeService {
         return null;
     }
 
+
     @Override
     @Transactional
     public ApiSchemeResponse create(ApiSchemeRequest request, Jwt jwt) {
         String email = jwt.getClaimAsString("sub");
 
+        // ១. ទាញយក Folder និង Workspace
         Folder folder = folderRepository.findById(request.folderId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "រកមិនឃើញ Folder ឡើយ"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Folder not found"));
 
-        String slug = request.endpointUrl().trim()
-                .replace("/", "")
-                .toLowerCase();
+        // ២. សម្អាត Slug (ដូចក្នុង createScheme)
+        String slug = request.endpointUrl().trim();
+        if (slug.startsWith("/")) slug = slug.substring(1);
 
         String projectKey = folder.getWorkspace().getProjectKey();
-        String generatedFullUrl = API_GATEWAY_PREFIX + projectKey + "/" + slug;
 
+        // ៣. ពិនិត្យ Duplicate (ប្រើ existsBy...Containing ដូច createScheme)
+        if (apiSchemeRepository.existsByWorkspaceProjectKeyAndEndpointUrlEndingWith(projectKey, slug)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Slug '" + slug + "' មានរួចហើយក្នុង Project របស់អ្នក");
+        }
+
+        // ៤. បង្កើត Entity ថ្មី និងកំណត់តម្លៃ (ដូច createScheme)
         ApiScheme scheme = new ApiScheme();
         scheme.setName(request.name());
-        scheme.setEndpointUrl(generatedFullUrl);
         scheme.setDescription(request.description());
         scheme.setProperties(request.properties());
         scheme.setKeys(request.keys());
         scheme.setIsPublic(request.isPublic());
-        scheme.setEndpointUrl(slug);
+        scheme.setIsPublished(false);
 
-        User owner = userRepository.findByEmail(email).orElseThrow();
+        // ៥. បង្កើត API Key ថ្មី
+        if (scheme.getApiKey() == null) {
+            String newKey = "sk_live_" + java.util.UUID.randomUUID().toString().replace("-", "");
+            scheme.setApiKey(newKey);
+        }
+
+        // ៦. រៀបចំ Full URL (ដូច createScheme)
+        String generatedFullUrl = API_GATEWAY_PREFIX + projectKey + "/" + slug;
+        scheme.setEndpointUrl(generatedFullUrl);
+
+        // ៧. កំណត់ម្ចាស់ និង Relationships
+        User owner = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
         scheme.setOwner(owner);
         scheme.setFolder(folder);
         scheme.setWorkspace(folder.getWorkspace());
         scheme.setCreatedAt(LocalDateTime.now());
+        scheme.setUpdatedAt(LocalDateTime.now());
 
+        // ៨. រក្សាទុក និងបង្កើត Analytics
         ApiScheme savedScheme = apiSchemeRepository.save(scheme);
 
         ProjectAnalytics analytics = new ProjectAnalytics();
         analytics.setApiScheme(savedScheme);
         analyticsRepository.save(analytics);
 
+        // ៩. Return ជា Response
         return apiSchemeMapper.toResponse(savedScheme);
     }
-
     @Override
     public ApiSchemeResponse getPublicDetailById(Integer id) {
         ApiScheme scheme = apiSchemeRepository.findById(id)
