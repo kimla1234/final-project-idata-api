@@ -26,13 +26,12 @@ public class ApiData {
     @JoinColumn(name = "api_scheme_id")
     private ApiScheme apiScheme;
 
-    @JdbcTypeCode(SqlTypes.JSON) // ប្រើសម្រាប់ Map ជាមួយ JSONB ក្នុង Postgres
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private Map<String, Object> content;
 
     private LocalDateTime createdAt = LocalDateTime.now();
-    // បើឈ្មោះ jsonData បងត្រូវប្រើ getJsonData()
-    @JdbcTypeCode(SqlTypes.JSON) // 🎯 សម្រាប់ទុកទិន្នន័យ Dynamic (email, password, etc.)
+    @JdbcTypeCode(SqlTypes.JSON) //  Dynamic (email, password, etc.)
     @Column(columnDefinition = "jsonb")
     private Map<String, Object> jsonData;
 }

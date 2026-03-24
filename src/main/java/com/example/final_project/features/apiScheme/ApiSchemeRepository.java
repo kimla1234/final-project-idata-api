@@ -15,20 +15,14 @@ import java.util.Optional;
 
 @Repository
 public interface ApiSchemeRepository extends JpaRepository<ApiScheme, Integer> {
-    // ស្វែងរក Schema ដោយប្រើ Project Key របស់ Workspace និង Slug ក្នុង EndpointUrl
-    //@Query("SELECT s FROM ApiScheme s WHERE s.workspace.projectKey = :projectKey AND s.endpointUrl LIKE %:slug")
-    //Optional<ApiScheme> findByProjectKeyAndSlug(@Param("projectKey") String projectKey, @Param("slug") String slug);
-    // 🎯 ត្រូវថែម Method នេះចូលវិញ ដើម្បីឱ្យ MockDataServiceImpl ឈប់ Error
+
     Optional<ApiScheme> findByEndpointUrl(String endpointUrl);
-    // ឆែកមើលថាតើក្នុង Project នេះមាន Slug ហ្នឹងហើយឬនៅ
     boolean existsByWorkspaceProjectKeyAndEndpointUrlContaining(String projectKey, String slug);
 
-    // រក្សាទុក Method ចាស់ៗដែលចាំបាច់
     boolean existsByEndpointUrl(String s);
     List<ApiScheme> findAllByFolderId(Integer folderId);
 
     void deleteById(Integer id);
-    // ស្វែងរក API ដែលបាន Publish ហើយ តាមរយៈឈ្មោះ (Case-Insensitive)
     List<ApiScheme> findByIsPublishedTrueAndNameContainingIgnoreCaseOrderByCreatedAtDesc(String name);
 
     Page<ApiScheme> findByIsPublishedTrueAndNameContainingIgnoreCase(String name, Pageable pageable);

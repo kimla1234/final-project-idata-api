@@ -12,44 +12,39 @@ import java.util.List;
 @Mapper(componentModel = "spring")
 public interface ApiSchemeMapper {
 
-    // ១. បន្ថែម Method នេះដើម្បីបំប្លែង List<Role> ទៅជា List<String> ក្នុង User Object
     default String mapRoleToString(Role role) {
         if (role == null) return null;
-        return role.getName(); // ប្រើឈ្មោះ field ឱ្យត្រូវតាម Role Entity របស់បង
+        return role.getName();
     }
 
-    // ២. បំប្លែងពី Request ទៅជា Entity (សម្រាប់ Create)
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "owner", ignore = true)
     @Mapping(target = "folder", ignore = true)
     @Mapping(target = "workspace", ignore = true)
     @Mapping(target = "parentApi", ignore = true)
-    @Mapping(target = "lastModifiedBy", ignore = true) // បន្ថែមសម្រាប់ Audit
+    @Mapping(target = "lastModifiedBy", ignore = true)
     ApiScheme fromCreateRequest(ApiSchemeCreateRequest request);
 
-    // ៣. បំប្លែងពី Entity ទៅជា Response DTO
     @Mapping(source = "apiKey", target = "apiKey")
     @Mapping(source = "folder.id", target = "folderId")
     @Mapping(source = "folder.name", target = "folderName")
     @Mapping(source = "workspace.id", target = "workspaceId")
     @Mapping(source = "owner.name", target = "ownerName")
-    @Mapping(source = "owner.profileImage", target = "ownerAvatar") // 🎯 ទាញពី field profileImage
+    @Mapping(source = "owner.profileImage", target = "ownerAvatar")
     @Mapping(target = "ownerHandle", expression = "java((apiScheme.getOwner().getName()))")
     @Mapping(source = "owner.uuid", target = "ownerUuid")
     @Mapping(source = "parentApi.id", target = "parentId")
     @Mapping(source = "parentApi.name", target = "parentName")
     @Mapping(target = "isFollowed", ignore = true)
-    // MapStruct នឹងប្រើ mapRoleToString អូតូសម្រាប់ nested objects (Owner/LastModifiedBy)
     ApiSchemeResponse toResponse(ApiScheme apiScheme);
 
 
 
     List<ApiSchemeResponse> toResponseList(List<ApiScheme> apiSchemes);
 
-    // ៤. Update Entity ដែលមានស្រាប់
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "workspace", ignore = true)
-    @Mapping(target = "endpointUrl", ignore = true) // យើង handle endpointUrl manual ក្នុង service
+    @Mapping(target = "endpointUrl", ignore = true)
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
     void updateFromRequest(ApiSchemeUpdateRequest request, @MappingTarget ApiScheme scheme);
 }

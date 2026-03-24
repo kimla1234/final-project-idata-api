@@ -7,31 +7,30 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/v1/engine-{projectKey}/auth") // 🎯 កំណត់ Base Path នៅទីនេះរួចហើយ
+@RequestMapping("/api/v1/engine-{projectKey}/auth")
 @RequiredArgsConstructor
 @CrossOrigin(origins = "*")
 public class ApiEngineController {
 
     private final ApiEngineAuthService authService;
 
-    // 🔗 URL ពិតប្រាកដនឹងក្លាយជា: /api/v1/engine-{projectKey}/auth/register
-    @PostMapping("/register") // ✅ លុប /{projectKey}/auth ចេញ
+    // /api/v1/engine-{projectKey}/auth/register
+    @PostMapping("/register")
     public ResponseEntity<?> register(@PathVariable String projectKey,
                                       @RequestHeader("x-api-key") String apiKey,
                                       @RequestBody Map<String, Object> body) {
         return ResponseEntity.ok(authService.handleRegister(projectKey, apiKey, body));
     }
 
-    // 🔗 URL ពិតប្រាកដនឹងក្លាយជា: /api/v1/engine-{projectKey}/auth/login
-    @PostMapping("/login") // ✅ លុប /{projectKey}/auth ចេញ
+    ///api/v1/engine-{projectKey}/auth/login
+    @PostMapping("/login")
     public ResponseEntity<?> login(@PathVariable String projectKey,
                                    @RequestHeader("x-api-key") String apiKey,
                                    @RequestBody Map<String, String> body) {
         return ResponseEntity.ok(authService.handleLogin(projectKey, apiKey, body));
     }
 
-    // 🔗 URL ពិតប្រាកដនឹងក្លាយជា: /api/v1/engine-{projectKey}/auth/refresh
-    @PostMapping("/refresh") // ✅ លុប /{projectKey}/auth ចេញ
+    @PostMapping("/refresh")
     public ResponseEntity<?> refresh(@PathVariable String projectKey,
                                      @RequestHeader("x-api-key") String apiKey,
                                      @RequestBody Map<String, String> body) {

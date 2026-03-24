@@ -13,31 +13,25 @@ public record ApiSchemeResponse(
         String endpointUrl,
         String description,
 
-        // ប្តូរមកប្រើ List នៃ Map ដើម្បីផ្ទុកលម្អិតដូចក្នុង UI (FieldName, Type, Required)
         List<Map<String, Object>> properties,
 
-        // បន្ថែម Keys ដើម្បីបង្ហាញ Primary Key និង Foreign Key ក្នុង UI
         List<Map<String, Object>> keys,
 
         Boolean isPublic,
 
-        // ព័ត៌មានអំពីម្ចាស់ និងទីតាំង
-        // 🎯 បន្ថែម Field ទាំងនេះ
         String ownerName,
-        String ownerAvatar, // សម្រាប់ URL រូបភាព
-        String ownerHandle, // សម្រាប់ @username
+        String ownerAvatar,
+        String ownerHandle,
 
         Integer folderId,
         String folderName,
         Integer workspaceId,
         String ownerUuid,
 
-        // ស្ថិតិសម្រាប់ Community (Behance Style)
         Integer forkCount,
         Integer viewCount,
-        Integer totalRequests, // ទាញចេញពី ProjectAnalytics
+        Integer totalRequests,
 
-        // ព័ត៌មានអំពីប្រភព (សម្រាប់ករណី Fork)
         Integer parentId,
         String parentName,
         Boolean isPublished,
@@ -56,14 +50,13 @@ public record ApiSchemeResponse(
 
         String apiKey
 ) {
-        // បង្កើត Helper Method ដើម្បីប្តូរតម្លៃ isFollowed
         public ApiSchemeResponse withIsFollowed(Boolean followedStatus) {
                 return new ApiSchemeResponse(
                         id, name, endpointUrl, description, properties, keys, isPublic,
                         ownerName, ownerAvatar, ownerHandle, folderId, folderName,
                         workspaceId, ownerUuid, forkCount, viewCount, totalRequests,
                         parentId, parentName, isPublished,
-                        followedStatus, // 🎯 ដាក់តម្លៃថ្មីនៅទីនេះ
+                        followedStatus,
                         createdAt, updatedAt, lastModifiedBy, dataCount, apiKey
                 );
         }

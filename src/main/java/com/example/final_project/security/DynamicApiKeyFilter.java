@@ -19,24 +19,18 @@ public class DynamicApiKeyFilter extends OncePerRequestFilter {
 
     private final ApiSchemeRepository apiSchemeRepository;
 
-    // ក្នុង DynamicApiKeyFilter.java
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
 
-        String path = request.getRequestURI(); // ឧទាហរណ៍: /api/v1/engine-p-9c89aff3/ggg
+        String path = request.getRequestURI();
 
         if (path.startsWith("/api/v1/engine-")) {
             try {
                 String[] pathParts = path.split("/");
 
-                // 🎯 កែសម្រួល Index នៅទីនេះឱ្យត្រូវតាម URL Structure
-                // pathParts[0] = ""
-                // pathParts[1] = "api"
-                // pathParts[2] = "v1"
-                // pathParts[3] = "engine-p-9c89aff3" <-- យក index 3 នេះ
-                // pathParts[4] = "ggg"               <-- យក index 4 នេះ
+
 
                 if (pathParts.length >= 5) {
                     String enginePart = pathParts[3];
@@ -44,14 +38,12 @@ public class DynamicApiKeyFilter extends OncePerRequestFilter {
 
                     String projectKey = enginePart.replace("engine-", "");
 
-                    // 🔍 បន្ថែម Log នេះដើម្បីឱ្យបងឃើញក្នុង Console ថាវាទាញបានត្រូវអត់
                     System.out.println("DEBUG: ProjectKey=" + projectKey + " | Slug=" + slug);
 
                     ApiScheme scheme = apiSchemeRepository.findByProjectKeyAndSlug(projectKey, slug)
                             .orElse(null);
 
                     if (scheme != null) {
-                        // Logic ឆែក isPublic និង apiKey របស់បងនៅដដែល...
                         if (Boolean.TRUE.equals(scheme.getIsPublic())) {
                             filterChain.doFilter(request, response);
                             return;

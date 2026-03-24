@@ -12,7 +12,6 @@ public record ApiSchemeUpdateRequest(
 
         String description,
 
-        // កែសម្រួលឱ្យត្រូវតាម payload ពី Frontend
         List<Map<String, Object>> properties,
 
         List<Map<String, Object>> keys,

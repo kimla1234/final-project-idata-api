@@ -18,7 +18,6 @@ import java.util.List;
 @Hidden
 public class FolderController {
     private final FolderService folderService;
-    // ១. បង្កើត Folder ថ្មីនៅក្នុង Workspace
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public FolderResponse createFolder(
@@ -29,7 +28,6 @@ public class FolderController {
         return folderService.createFolder(workspaceId, request, jwt);
     }
 
-    // ២. ទាញយកបញ្ជី Folder ទាំងអស់នៃ Workspace ជាក់លាក់មួយ
     @GetMapping
     public List<FolderResponse> getFoldersByWorkspace(
             @PathVariable Integer workspaceId,
@@ -46,7 +44,6 @@ public class FolderController {
         return folderService.updateFolder(folderId, request, jwt);
     }
 
-    // បន្ថែម Delete Folder
     @DeleteMapping("/{folderId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteFolder(

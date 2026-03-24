@@ -30,7 +30,6 @@ public class FileUploadController {
             Map<String, Object> schema = fileSchemaService.extractSchemaFromFile(file);
             return ResponseEntity.ok(schema);
         } catch (Exception e) {
-            // 🎯 ត្រូវបោះជា Map.of("error", ...) ដើម្បីឱ្យវាទៅជា JSON {"error": "..."}
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(Map.of("error", e.getMessage()));
         }
@@ -38,11 +37,9 @@ public class FileUploadController {
 
     @PostMapping("/generate-from-file")
     public ResponseEntity<?> createSchemaFromFile(@RequestBody ApiSchemeRequest request, @AuthenticationPrincipal Jwt jwt ) {
-        // ហៅ Method ដែលបានកែសម្រួលខាងលើ
         ApiSchemeResponse savedScheme = apiSchemeService.create(request, jwt);
         return ResponseEntity.status(HttpStatus.CREATED).body(savedScheme);
     }
-    // ថែមក្នុង FileUploadController.java
 
     @PostMapping("/generate-from-prompt")
     public ResponseEntity<?> generateFromPrompt(@RequestBody Map<String, String> payload) {
@@ -52,7 +49,6 @@ public class FileUploadController {
                 return ResponseEntity.badRequest().body(Map.of("error", "Prompt cannot be empty"));
             }
 
-            // ហៅ Service ដើម្បីឱ្យ AI ឌីហ្សាញ Schema
             Map<String, Object> aiDesignedSchema = fileSchemaService.generateSchemaFromPrompt(prompt);
 
             return ResponseEntity.ok(aiDesignedSchema);

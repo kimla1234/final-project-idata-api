@@ -14,13 +14,11 @@ public interface userMapper {
     @Mappings({
             @Mapping(target = "roles", source = "roles", qualifiedByName = "mapRoles"),
             @Mapping(target = "followersCount", source = "user", qualifiedByName = "countFollowers"),
-            // បើកវាវិញទាំងអស់ (Uncomment)
             @Mapping(target = "address", source = "address"), // បន្ថែម address បើក្នុង Response មាន
             @Mapping(target = "coverImage", source = "coverImage")
     })
     UserResponse mapFromUserToUserResponse(User user);
 
-    // បម្លែង List<Role> ទៅជា List<String>
     @Named("mapRoles")
     default List<String> mapRoles(List<Role> roles) {
         if (roles == null) return null;
@@ -29,7 +27,6 @@ public interface userMapper {
                 .toList();
     }
 
-    // រាប់ចំនួន Followers ចេញពី List<User> followers ក្នុង Entity
     @Named("countFollowers")
     default Integer countFollowers(User user) {
         if (user.getFollowers() == null) {

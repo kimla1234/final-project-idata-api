@@ -48,30 +48,30 @@ public class SecurityConfig {
     @Bean
     public DaoAuthenticationProvider daoAuthenticationProvider() {
         DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
-        // ប្តូរពីការប្រើ Constructor មកប្រើ Setter បែបនេះវិញដើម្បីបាត់ Error
         provider.setUserDetailsService(userDetailsService);
         provider.setPasswordEncoder(passwordEncoder);
         return provider;
     }
 
-    // Keep this for AuthTokenServiceImpl, but it won't be used by the FilterChain automatically
     @Bean
     JwtAuthenticationProvider jwtAuthenticationProvider(@Qualifier("refreshJwtDecoder") JwtDecoder refreshJwtDecoder) {
         JwtAuthenticationProvider provider = new JwtAuthenticationProvider(refreshJwtDecoder);
         return provider;
     }
 
-    // ១. ថែម Bean នេះចូលក្នុង SecurityConfig
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        // 🎯 ប្រើ patterns ជំនួស origins ធម្មតា ដើម្បីដោះស្រាយ Error 500
-        configuration.setAllowedOriginPatterns(java.util.List.of("*"));
+        configuration.setAllowedOrigins(java.util.List.of(
+                "https://ui.idata.fit",
+                "http://localhost:3000",
+                "http://34.158.60.52:9992"
+
+        ));
 
         configuration.setAllowedMethods(java.util.List.of("GET", "POST", "PUT","PATCH", "DELETE", "OPTIONS"));
 
-        // 🎯 ត្រូវតែមាន "x-api-key" ក្នុងជួរនេះ
         configuration.setAllowedHeaders(java.util.List.of("Authorization", "Content-Type", "x-api-key", "Accept", "Origin"));
 
         configuration.setAllowCredentials(true);
@@ -89,7 +89,6 @@ public class SecurityConfig {
         httpSecurity
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(csrf -> csrf.disable())
-                // 🎯 ចំណុចសំខាន់៖ ដាក់ ApiKeyFilter ឱ្យដើរមុន AuthorizationFilter
                 .addFilterBefore(dynamicApiKeyFilter, AuthorizationFilter.class)
                 .authorizeHttpRequests(request -> request
                         .requestMatchers("/api/v1/auth/**").permitAll()
@@ -106,29 +105,22 @@ public class SecurityConfig {
                         //.requestMatchers(HttpMethod.GET,"/api/v1/users/**").authenticated()
                         .requestMatchers("/api/v1/users/me").authenticated() // OR if you use roles:
 
-                        .requestMatchers(HttpMethod.GET, "/api/v1/events/**").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/v1/events/**").authenticated()
+
 
                         .requestMatchers(HttpMethod.POST, "/api/v1/media/**").permitAll()
                         .requestMatchers("/media/**").permitAll()
 
                         .requestMatchers(HttpMethod.GET, "/api/v1/api-schemes/public/**").permitAll()
 
-                        // កែពី hasAnyAuthority មក authenticated() វិញ
                         .requestMatchers(HttpMethod.PATCH, "/api/v1/users/**").authenticated()
-                        .requestMatchers(HttpMethod.GET,"/api/v1/users/*/admins/**").hasAuthority("SCOPE_admin:read")
 
-                        .requestMatchers(HttpMethod.POST, "/v1/search/dataImport").hasAuthority("SCOPE_admin:write")
                         .requestMatchers("/v1/media/**").hasAnyAuthority("SCOPE_admin:write", "SCOPE_user:write")
-                        .requestMatchers("/v1/video/**").permitAll()
 
                         .anyRequest().authenticated()
                 )
         .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(Customizer.withDefaults())
-                // បន្ថែមចំណុចនេះ ប្រសិនបើបងចង់ឱ្យវា Ignore ផ្លូវខ្លះ (Optional)
         );
-        // enable jwt security
         httpSecurity.oauth2ResourceServer(jwt -> jwt
                 .jwt(Customizer.withDefaults()));
 
@@ -142,7 +134,6 @@ public class SecurityConfig {
         return httpSecurity.build();
     }
 
-    // --- Access Token Beans ---
 
     @Primary
     @Bean("jwkSource")

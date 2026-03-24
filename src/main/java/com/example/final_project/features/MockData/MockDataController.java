@@ -12,7 +12,7 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/v1/mock") // 'm' តំណាងឱ្យ Mock Endpoint
+@RequestMapping("/api/v1/mock")
 @RequiredArgsConstructor
 @Hidden
 public class MockDataController {
@@ -22,7 +22,7 @@ public class MockDataController {
     @ResponseStatus(HttpStatus.CREATED)
     public Map<String, Object> addMockData(
             @PathVariable String endpointUrl,
-            @Valid @RequestBody Map<String, Object> data, // ទទួល Dynamic JSON
+            @Valid @RequestBody Map<String, Object> data,
             @AuthenticationPrincipal Jwt jwt) {
         return mockDataService.addMockData(endpointUrl, data, jwt);
     }

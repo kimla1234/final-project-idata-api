@@ -33,14 +33,11 @@ public class MockDataService {
     @Value("${openrouter.model}")
     private String modelName;
 
-    /**
-     * 🎯 Generate ទិន្នន័យ 5 objects តាមរយៈ Hunter Alpha (OpenRouter)
-     */
+
     public void generateAndSave(ApiScheme schema, String instruction) throws JsonProcessingException {
         String safeInstruction = (instruction == null) ? "Generate realistic data" : instruction;
         String schemaJson = objectMapper.writeValueAsString(schema.getProperties());
 
-        // ១. រៀបចំ Prompt ឱ្យច្បាស់សម្រាប់ Hunter Alpha
         String promptText = "Act as a specialized JSON generator. Generate a JSON array of 5 realistic objects.\n" +
                 "STRICT RULES:\n" +
                 "1. MATCH these properties and data types EXACTLY: " + schemaJson + "\n" +
@@ -50,7 +47,6 @@ public class MockDataService {
                 "5. Output ONLY the raw JSON array. No markdown, no explanations.\n" +
                 "6. DO NOT include the 'id' field.";
 
-        // ២. បង្កើត Payload តាមស្តង់ដារ OpenAI/OpenRouter
         Map<String, Object> payload = Map.of(
                 "model", modelName,
                 "messages", List.of(
@@ -61,12 +57,11 @@ public class MockDataService {
         );
 
         try {
-            // ៣. បាញ់ Request ទៅ OpenRouter
             String aiResponse = webClientBuilder.build()
                     .post()
                     .uri(apiUrl)
                     .header("Authorization", "Bearer " + apiKey)
-                    .header("HTTP-Referer", "http://localhost:8081") // តម្រូវការរបស់ OpenRouter
+                    .header("HTTP-Referer", "https://api.idata.fit") // តម្រូវការរបស់ OpenRouter
                     .header("X-Title", "API Engine Project")        // តម្រូវការរបស់ OpenRouter
                     .header("Content-Type", "application/json")
                     .bodyValue(payload)
@@ -82,10 +77,8 @@ public class MockDataService {
                 throw new RuntimeException("AI returned an empty response.");
             }
 
-            // ៤. បកប្រែទិន្នន័យ (Parsing)
             List<Map<String, Object>> mockData = parseAiResponse(aiResponse);
 
-            // ៥. រក្សាទុកចូល Database
             insertMockDataSafely(schema, mockData);
 
         } catch (Exception e) {
@@ -95,7 +88,6 @@ public class MockDataService {
     }
 
     private void insertMockDataSafely(ApiScheme schema, List<Map<String, Object>> mockData) {
-        // Query រក ID ចុងក្រោយគេក្នុង JSONB content
         String findMaxSql = "SELECT COALESCE(MAX((content->>'id')::int), 0) FROM api_data WHERE api_scheme_id = ?";
         Integer maxId = jdbcTemplate.queryForObject(findMaxSql, Integer.class, schema.getId());
         int nextId = (maxId == null ? 0 : maxId) + 1;
@@ -124,7 +116,6 @@ public class MockDataService {
                 throw new RuntimeException("AI returned empty content");
             }
 
-            // សម្អាត Markdown ប្រសិនបើមាន (ជួនកាល AI បោះ ```json ... ``` មកជាមួយ)
             jsonContent = jsonContent.trim();
             if (jsonContent.startsWith("```")) {
                 jsonContent = jsonContent.replaceAll("^```[a-z]*\\n|\\n```$", "");

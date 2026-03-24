@@ -27,11 +27,9 @@ public class MockDataServiceImpl implements MockDataService  {
     @Override
     @Transactional
     public Map<String, Object> addMockData(String endpointUrl, Map<String, Object> requestData, Jwt jwt) {
-        // ១. ស្វែងរក ApiScheme (អ្នកធ្វើត្រូវហើយ)
         ApiScheme apiScheme = apiSchemeRepository.findByEndpointUrl(endpointUrl)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "រកមិនឃើញ API នេះឡើយ"));
 
-        // ២. Validation Logic (អ្នកធ្វើត្រូវហើយ)
         List<Map<String, Object>> properties = apiScheme.getProperties();
         if (properties == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "API មិនទាន់មានការកំណត់ Properties");
@@ -45,14 +43,12 @@ public class MockDataServiceImpl implements MockDataService  {
             }
         }
 
-        // ៣. បន្ថែមផ្នែកនេះ៖ រក្សាទុកទិន្នន័យចូល Database
         MockData mockData = new MockData();
-        mockData.setApiScheme(apiScheme); // ចងភ្ជាប់ជាមួយ Scheme ដើម
-        mockData.setDataJson(requestData); // ដាក់ទិន្នន័យ JSON ចូល (ប្រាកដថាឈ្មោះ Field ក្នុង Entity គឺ dataJson)
+        mockData.setApiScheme(apiScheme);
+        mockData.setDataJson(requestData);
 
-        mockDataRepository.save(mockData); // រក្សាទុក
+        mockDataRepository.save(mockData);
 
-        // ៤. Update Analytics (បើចង់ឱ្យកើន Request ពេល POST ដែរ)
         updateAnalytics(apiScheme);
 
         return requestData;
@@ -61,14 +57,11 @@ public class MockDataServiceImpl implements MockDataService  {
 
     @Override
     public List<Map<String, Object>> getMockDataByEndpoint(String endpointUrl) {
-        // ទាញយក ApiScheme
         ApiScheme scheme = apiSchemeRepository.findByEndpointUrl(endpointUrl)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "API not found"));
 
-        // បង្កើនចំនួន Requests ក្នុង Analytics (Optional: អាចធ្វើជា Async ក៏បាន)
         updateAnalytics(scheme);
 
-        // ទាញយកទិន្នន័យ JSON ទាំងអស់ដែលពាក់ព័ន្ធ
         return mockDataRepository.findAllByApiSchemeId(scheme.getId())
                 .stream()
                 .map(MockData::getDataJson)
@@ -84,7 +77,6 @@ public class MockDataServiceImpl implements MockDataService  {
     // --- Helper Methods ---
 
     private void validateIncomingData(Map<String, Object> incoming, Map<String, Object> schema) {
-        // ឆែកមើលថាតើគ្រប់ Field ក្នុង Schema មានក្នុងទិន្នន័យដែលផ្ញើមកឬអត់
         for (String key : schema.keySet()) {
             if (!incoming.containsKey(key)) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "ខ្វះ Field: " + key);

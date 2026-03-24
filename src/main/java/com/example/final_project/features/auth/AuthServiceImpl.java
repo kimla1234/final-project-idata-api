@@ -2,6 +2,7 @@ package com.example.final_project.features.auth;
 
 import com.example.final_project.base.BaseMessage;
 import com.example.final_project.domain.*;
+import com.example.final_project.features.apiScheme.ApiSchemeRepository;
 import com.example.final_project.features.auth.dto.*;
 import com.example.final_project.features.folder.FolderRepository;
 import com.example.final_project.features.token.AuthTokenService;
@@ -33,6 +34,7 @@ import org.springframework.web.server.ResponseStatusException;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -61,7 +63,7 @@ public class AuthServiceImpl implements AuthService {
     private final FolderRepository folderRepository;
     private final InvitationRepository invitationRepository;
     private final WorkspaceMemberRepository memberRepository;
-
+    private final ApiSchemeRepository apiSchemeRepository;
     @Value("${spring.mail.username}")
     private String adminMail;
 
@@ -69,7 +71,6 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public BaseMessage register(RegisterRequest registerRequest) throws MessagingException {
 
-        // ១. ឆែកមើល Email ថាមានក្នុង System ហើយឬនៅ
         if (userRepository.existsByEmail(registerRequest.email())) {
             throw new ResponseStatusException(
                     HttpStatus.CONFLICT,
@@ -77,17 +78,14 @@ public class AuthServiceImpl implements AuthService {
             );
         }
 
-        // ២. ផ្ទៀងផ្ទាត់ Password និង Confirm Password
         if (!registerRequest.password().equals(registerRequest.confirmPassword())) {
             return BaseMessage.builder().message("Password and Confirm Password must be same").build();
         }
 
-        // ៣. ផ្ទៀងផ្ទាត់កម្រិតសុវត្ថិភាព Password
         if (!PasswordValidator.validate(registerRequest.password())) {
             return BaseMessage.builder().message("Password must contain at least 8 characters, 1 uppercase, 1 lowercase, 1 number and 1 special character").build();
         }
 
-        // ៤. រៀបចំទិន្នន័យ User ថ្មី
         String verifyCode = GenerateNumberUtil.generateCodeNumber();
         User user = authMapper.mapFromRegisterCreateRequest(registerRequest);
 
@@ -98,7 +96,6 @@ public class AuthServiceImpl implements AuthService {
         user.setIsBlock(false);
         user.setVerificationCode(verifyCode);
 
-        // ៥. កំណត់ Default Role (USER)
         Role role = roleRepository.findByName("USER")
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
@@ -106,10 +103,8 @@ public class AuthServiceImpl implements AuthService {
                 ));
         user.setRoles(new ArrayList<>(List.of(role)));
 
-        // ៦. រក្សាទុក User ចូលក្នុង Database (ដើម្បីយក ID ទៅប្រើបន្ត)
         userRepository.save(user);
 
-        // 🎯 ៧. ឆែកមើល Pending Invitations (Logic ដែលបងចង់បាន)
         List<Invitation> pendingInvites = invitationRepository.findAllByEmail(user.getEmail().toLowerCase());
 
         if (!pendingInvites.isEmpty()) {
@@ -117,15 +112,13 @@ public class AuthServiceImpl implements AuthService {
                 WorkspaceMember member = new WorkspaceMember();
                 member.setUser(user);
                 member.setWorkspace(invite.getWorkspace());
-                member.setRole(invite.getRole()); // Role តាមដែលគេបាន Invite (ADMIN/EDITOR/VIEWER)
+                member.setRole(invite.getRole());
                 workspaceMemberRepository.save(member);
             });
 
-            // លុបការអញ្ជើញចោល ព្រោះគាត់បានក្លាយជាសមាជិកហើយ
             invitationRepository.deleteAll(pendingInvites);
         }
 
-        // ៨. រៀបចំផ្ញើ Email Verification
         MimeMessage message = javaMailSender.createMimeMessage();
         MimeMessageHelper helper = new MimeMessageHelper(message);
 
@@ -145,6 +138,7 @@ public class AuthServiceImpl implements AuthService {
 
 
     @Override
+    @Transactional
     public BaseMessage verifyUserAccount(VerifyCodeRequest verifyCodeRequest) {
         User user = authRepository.findByEmailAndVerificationCodeAndIsDeleteFalse(verifyCodeRequest.email(), verifyCodeRequest.verificationCode())
                 .orElseThrow(() -> new ResponseStatusException(
@@ -156,30 +150,123 @@ public class AuthServiceImpl implements AuthService {
             return BaseMessage.builder().message("Your account has already been verified.").build();
         }
 
+        // ១. Update User status
         user.setIsVerified(true);
         userRepository.save(user);
 
-        // ២. បង្កើត Default Workspace ឱ្យ User ភ្លាមៗ (UX: My Workspace)
+        // ២.  Default Workspace ឱ្យ User (UX: My Workspace)
         Workspace defaultWorkspace = new Workspace();
-        defaultWorkspace.setName(user.getName() + "'s Workspace"); // ឧទាហរណ៍៖ Kimla's Workspace
-        // ប្រសិនបើ Entity Workspace របស់អ្នកមាន field ផ្សេងៗ កុំភ្លេច set ឱ្យវាផង
-        defaultWorkspace = workspaceRepository.save(defaultWorkspace);
+        defaultWorkspace.setName(user.getName() + "'s Workspace");
 
-        // ៣. បន្ថែម User នោះជា OWNER ក្នុង Workspace ថ្មីនេះ
+        //  Project Key
+        String uniqueKey = "p-" + java.util.UUID.randomUUID().toString().substring(0, 8);
+        defaultWorkspace.setProjectKey(uniqueKey);
+
+
+
+        Workspace savedWorkspace = workspaceRepository.save(defaultWorkspace);
+
         WorkspaceMember member = new WorkspaceMember();
         member.setUser(user);
-        member.setWorkspace(defaultWorkspace);
+        member.setWorkspace(savedWorkspace);
         member.setRole("OWNER");
         workspaceMemberRepository.save(member);
 
-        // ៤. បង្កើត Default Folder (ឧទាហរណ៍៖ General Folder)
-        Folder defaultFolder = new Folder();
-        defaultFolder.setName("General");
-        defaultFolder.setWorkspace(defaultWorkspace); // ភ្ជាប់ទៅកាន់ Workspace ដែលទើបបង្កើត
-        folderRepository.save(defaultFolder);
 
-        return BaseMessage.builder().message("Your account has been verified.").build();
+        createDefaultAuthService(savedWorkspace, user);
+
+        Folder generalFolder = new Folder();
+        generalFolder.setName("General");
+        generalFolder.setWorkspace(savedWorkspace);
+        folderRepository.save(generalFolder);
+
+        return BaseMessage.builder().message("Your account has been verified successfully.").build();
     }
+    private void createDefaultAuthService(Workspace workspace, User user) {
+        String pKey = workspace.getProjectKey();
+
+        String authSwaggerJson = """
+    {
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Auth Service API",
+    "description": "API សម្រាប់គ្រប់គ្រងការចុះឈ្មោះ និងចូលប្រើប្រាស់ (Dynamic JWT)",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://api.idata.fit",
+      "description": "Production Server"
+    }
+  ],
+  "paths": {
+    "/api/v1/engine-%s/auth/register": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Register new user",
+        "responses": { "201": { "description": "User created" } }
+      }
+    },
+    "/api/v1/engine-%s/auth/login": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Login to get tokens",
+        "responses": { "200": { "description": "Login success" } }
+      }
+    },
+    "/api/v1/engine-%s/auth/refresh": {
+      "post": {
+        "tags": ["Authentication"],
+        "summary": "Refresh expired Access Token",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "refreshToken": { "type": "string" }
+                },
+                "example": { "refreshToken": "eyJhbG..." }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Token refreshed" } }
+      }
+    }
+  }
+}
+""".formatted(pKey, pKey, pKey);
+
+        Folder folder = new Folder();
+        folder.setName("Auth Service");
+        folder.setWorkspace(workspace);
+        Folder savedFolder = folderRepository.save(folder);
+
+        ApiScheme scheme = new ApiScheme();
+        scheme.setName("auth");
+        scheme.setType("AUTH");
+        scheme.setWorkspace(workspace);
+        scheme.setFolder(savedFolder);
+        scheme.setOwner(user);
+        scheme.setApiKey("sk_live_" + UUID.randomUUID().toString().replace("-", ""));
+
+        scheme.setEndpointUrl("/api/v1/engine-" + pKey + "/auth");
+
+        scheme.setDefinition(authSwaggerJson);
+
+        scheme.setCreatedAt(LocalDateTime.now());
+        scheme.setUpdatedAt(LocalDateTime.now());
+        scheme.setIsPublic(false);
+        scheme.setIsPublished(false);
+        scheme.setForkCount(0);
+        scheme.setViewCount(0);
+
+
+        apiSchemeRepository.save(scheme);
+    }
+
+
 
     @Override
     public AuthResponse userLogin(LoginRequest loginRequest) {

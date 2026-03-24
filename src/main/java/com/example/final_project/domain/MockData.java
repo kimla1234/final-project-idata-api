@@ -23,10 +23,7 @@ public class MockData extends Auditable {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
-    /**
-     * ផ្ទុកទិន្នន័យជាក់ស្តែង (ឧទាហរណ៍៖ {"id": 1, "name": "Coca Cola", "price": 0.5})
-     * យើងប្រើ Map<String, Object> ដើម្បីឱ្យវាអាចបត់បែនតាមគ្រប់ Schema ទាំងអស់
-     */
+
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private Map<String, Object> dataJson;

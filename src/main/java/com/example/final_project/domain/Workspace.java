@@ -22,11 +22,9 @@ public class Workspace extends Auditable {
     private String name;
     private String description;
 
-    // Workspace មួយមានមនុស្សចូលរួមច្រើន (Owner, Staff, etc.)
     @ManyToMany(mappedBy = "workspaces")
     private List<User> users;
 
-    // Workspace មួយអាចមាន Folder ច្រើន
     @OneToMany(mappedBy = "workspace", cascade = CascadeType.ALL)
     private List<Folder> folders;
 

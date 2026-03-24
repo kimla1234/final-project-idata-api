@@ -15,7 +15,6 @@ public interface ApiDataRepository extends JpaRepository<ApiData, Long> {
     @Query("SELECT d FROM ApiData d WHERE d.id = :id AND d.apiScheme.endpointUrl LIKE %:slug%")
     Optional<ApiData> findByIdAndSlug(@Param("id") Long id, @Param("slug") String slug);
 
-    // ស្វែងរក Record ដោយផ្អែកលើ ID ខ្លួនវាផង និងព័ត៌មានរបស់ Schema ផង
     Optional<ApiData> findByIdAndApiSchemeWorkspaceIdAndApiSchemeEndpointUrlContaining(Long id, Integer workspaceId, String slug);
     Optional<ApiData> findByIdAndApiSchemeEndpointUrlContaining(Long id, String slug);
 

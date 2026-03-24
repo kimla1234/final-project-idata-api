@@ -22,7 +22,6 @@ public class ApiSchemeController {
 
     private final ApiSchemeService apiSchemeService;
 
-    // --- ផ្នែកគ្រប់គ្រងក្នុង Workspace (Private) ---
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -45,7 +44,7 @@ public class ApiSchemeController {
 
 
     @DeleteMapping("/{id}")
-    @ResponseStatus(HttpStatus.NO_CONTENT) // បន្ថែម Status 204 បើលុបជោគជ័យ
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     void deleteScheme(@PathVariable Integer id, @AuthenticationPrincipal Jwt jwt) { // ថែម @AuthenticationPrincipal
         apiSchemeService.deleteScheme(id, jwt);
     }
@@ -64,7 +63,6 @@ public class ApiSchemeController {
         apiSchemeService.togglePublicStatus(id, description, jwt);
     }
 
-    // --- ផ្នែកសហគមន៍ (Public - អ្នកណាក៏មើលបាន) ---
 
 
     @GetMapping("/public/feed")
@@ -72,22 +70,20 @@ public class ApiSchemeController {
             @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
-            @AuthenticationPrincipal Jwt jwt // 🎯 ថែម Jwt កន្លែងនេះ
+            @AuthenticationPrincipal Jwt jwt
     ) {
-        // បោះ Search, Page, Size និង Jwt ទៅឱ្យ Service
         return apiSchemeService.getCommunityFeed(search, page, size, jwt);
     }
 
     @GetMapping("/public/{id}")
     public ApiSchemeResponse getPublicDetail(@PathVariable Integer id) {
-        // បង្កើត Method ថ្មីក្នុង Service ដែលមិនត្រូវការ Jwt (Security PermitAll)
         return apiSchemeService.getPublicDetailById(id);
     }
 
-    @PostMapping("/{id}/fork") // 🎯 ត្រូវតែជា PostMapping
+    @PostMapping("/{id}/fork")
     public ResponseEntity<ApiSchemeResponse> forkApi(
             @PathVariable Integer id,
-            @RequestParam Integer targetFolderId, // 🎯 ទទួលតាម Query Param (?targetFolderId=...)
+            @RequestParam Integer targetFolderId,
             @AuthenticationPrincipal Jwt jwt) {
 
         ApiSchemeResponse response = apiSchemeService.forkApi(id, targetFolderId, jwt);

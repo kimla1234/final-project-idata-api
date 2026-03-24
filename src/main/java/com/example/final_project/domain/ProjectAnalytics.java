@@ -36,10 +36,7 @@ public class ProjectAnalytics extends Auditable {
 
     private LocalDateTime lastAccessedAt;
 
-    /**
-     * ប្រភពដែលគេហៅប្រើច្រើនជាងគេ (ឧទាហរណ៍៖ Web, Mobile, Postman)
-     * អាចទុកជា JSON ដើម្បីដឹងពី Device Type ឬ Location
-     */
+
     @Column(length = 100)
     private String topReferrer;
 }

@@ -25,10 +25,9 @@ public class DynamicApiEngineController {
     private final ApiSchemeRepository apiSchemeRepository;
     private final ApiSchemeService apiSchemeService;
     private final ApiDataRepository apiDataRepository;
-    // បងអាចប្រើ MongoDB Template ឬ Repository សម្រាប់រក្សាទុក Data ពិតរបស់ User
-    // private final MongoTemplate mongoTemplate;
 
-    // ១. GET: Retrieve Data
+
+
     @GetMapping
     public ResponseEntity<?> handleGet(
             @PathVariable("projectKey") String projectKey,
@@ -40,7 +39,6 @@ public class DynamicApiEngineController {
         return ResponseEntity.ok(allData.stream().map(this::mapToResponse).toList());
     }
 
-    // ២. POST: Create Data
     @PostMapping
     public ResponseEntity<?> handlePost(
             @PathVariable String projectKey,
@@ -49,11 +47,8 @@ public class DynamicApiEngineController {
 
         ApiScheme scheme = findScheme(projectKey, slug);
 
-        // 🎯 ១. ទាញយកឈ្មោះ Column ដែលជា Primary Key (PK) ពី Schema Properties/Keys
-        // ក្នុងករណីបងគឺឈ្មោះ "id"
-        String pkName = "id"; // បងអាចធ្វើ logic ទាញពី scheme.getKeys() ក៏បាន
+        String pkName = "id";
 
-        // 🎯 ២. រកតម្លៃ Max ID បច្ចុប្បន្នដែលមាននៅក្នុង JSON Content
         List<ApiData> existingData = apiDataRepository.findAllByApiSchemeId(scheme.getId());
 
         long nextId = existingData.stream()
@@ -66,13 +61,11 @@ public class DynamicApiEngineController {
                     return 0L;
                 })
                 .max(Long::compare)
-                .orElse(0L) + 1; // បើអត់ទាន់មានទិន្នន័យ ឱ្យចាប់ផ្ដើមពី ១
+                .orElse(0L) + 1;
 
-        // 🎯 ៣. បញ្ចូល ID ថ្មីទៅក្នុង Body (Overriding id ដែលមកពី Frontend ឬ AI)
         Map<String, Object> contentWithId = new HashMap<>(body);
         contentWithId.put(pkName, nextId);
 
-        // ៤. រក្សាទុកចូល Database
         ApiData apiData = new ApiData();
         apiData.setApiScheme(scheme);
         apiData.setContent(contentWithId);
@@ -81,12 +74,11 @@ public class DynamicApiEngineController {
         return ResponseEntity.status(HttpStatus.CREATED).body(mapToResponse(saved));
     }
 
-    // ៣. GET BY ID: ហៅទិន្នន័យជាក់លាក់
     @GetMapping("/{id}")
     public ResponseEntity<?> handleGetById(
             @PathVariable("projectKey") String projectKey,
             @PathVariable("slug") String slug,
-            @PathVariable("id") String id) { // 🎯 ប្រើ String ដើម្បី Match ជាមួយ JSON Value
+            @PathVariable("id") String id) {
 
         ApiScheme scheme = findScheme(projectKey, slug);
 
@@ -96,7 +88,6 @@ public class DynamicApiEngineController {
         return ResponseEntity.ok(mapToResponse(data));
     }
 
-    // ៤. PUT: Update ទិន្នន័យតាម ID ក្នុង JSON
     @PutMapping("/{id}")
     public ResponseEntity<?> handleUpdate(
             @PathVariable("projectKey") String projectKey,
@@ -114,7 +105,6 @@ public class DynamicApiEngineController {
         return ResponseEntity.ok(mapToResponse(existingData));
     }
 
-    // ៥. DELETE: លុបទិន្នន័យតាម ID ក្នុង JSON
     @DeleteMapping("/{id}")
     public ResponseEntity<?> handleDelete(
             @PathVariable("projectKey") String projectKey,
@@ -139,7 +129,6 @@ public class DynamicApiEngineController {
 
     private Map<String, Object> mapToResponse(ApiData data) {
         Map<String, Object> res = new HashMap<>(data.getContent());
-        // ប្រសិនបើក្នុង JSON មិនទាន់មាន id ទេ ឱ្យវាទាញ id ពី Database មកបង្ហាញ
         if (!res.containsKey("id")) {
             res.put("id", data.getId());
         }

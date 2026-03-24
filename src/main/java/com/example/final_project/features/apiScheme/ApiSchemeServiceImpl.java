@@ -38,11 +38,8 @@ public class ApiSchemeServiceImpl implements ApiSchemeService {
     private final ApiDataRepository apiDataRepository;
 
 
-    // កំណត់ Domain របស់ API Engine (ឧទាហរណ៍)
 
-    // នៅក្នុង ApiSchemeServiceImpl.java
-// កំណត់ Base URL ដែល User នឹងយកទៅប្រើ (ឧទាហរណ៍៖ https://api.idata.com/v1/...)
-    private static final String API_GATEWAY_PREFIX = "http://localhost:8081/api/v1/engine-";
+    private static final String API_GATEWAY_PREFIX = "https://api.idata.fit/api/v1/engine-";
 
 
     @Override
@@ -53,14 +50,11 @@ public class ApiSchemeServiceImpl implements ApiSchemeService {
         Folder folder = folderRepository.findById(request.folderId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Folder not found"));
 
-        // ១. សម្អាត Slug
         String slug = request.endpointUrl().trim();
         if (slug.startsWith("/")) slug = slug.substring(1);
 
-        // ២. ទាញយក projectKey ពី Workspace
         String projectKey = folder.getWorkspace().getProjectKey();
 
-        // ៣. ឆែក Unique Slug ក្នុង Project តែមួយ (User ផ្សេងមាន Slug ដូចគ្នាក៏មិនអីដែរ)
         if (apiSchemeRepository.existsByWorkspaceProjectKeyAndEndpointUrlContaining(projectKey, slug)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Slug '" + slug + "' មានរួចហើយក្នុង Project របស់អ្នក");
         }
@@ -73,7 +67,6 @@ public class ApiSchemeServiceImpl implements ApiSchemeService {
             scheme.setApiKey(newKey);
         }
 
-        // ៤. បង្កើត Full URL រាង៖ http://localhost:8080/api/v1/engine-abc123/users
         String generatedFullUrl = API_GATEWAY_PREFIX + projectKey + "/" + slug;
         scheme.setEndpointUrl(generatedFullUrl);
 
@@ -95,14 +88,11 @@ public class ApiSchemeServiceImpl implements ApiSchemeService {
     @Override
     @Transactional
     public ApiSchemeResponse updateScheme(Integer id, ApiSchemeUpdateRequest request, Jwt jwt) {
-        // ១. ទាញយក Entity
         ApiScheme scheme = apiSchemeRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Schema not found"));
 
-        // 🎯 ២. កែសម្រួល Key ឱ្យទៅជា "sub" ដូចក្នុង createScheme វិញ
         String currentUserEmail = jwt.getClaimAsString("sub");
 
-        // បន្ថែម Log ដើម្បី Check មើលថាវាទាញបាន Email ពិតមែនអត់ (មើលក្នុង Console)
         System.out.println("DEBUG: Current User Email from Token: " + currentUserEmail);
         System.out.println("DEBUG: Owner Email from DB: " + scheme.getOwner().getEmail());
 
@@ -110,13 +100,10 @@ public class ApiSchemeServiceImpl implements ApiSchemeService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You don't have permission to update this API");
         }
 
-        // ៣. Update ទិន្នន័យ (isPublic នឹងត្រូវបាន Update តាមរយៈ mapper)
         apiSchemeMapper.updateFromRequest(request, scheme);
         scheme.setUpdatedAt(LocalDateTime.now());
 
-        // ៤. Logic សម្រាប់ Endpoint URL
         if (request.endpointUrl() != null && !request.endpointUrl().isBlank()) {
-            // កាត់យកតែ Slug ចុងក្រោយ ដើម្បីកុំឱ្យជាប់ Validation Regex ^[a-z0-9-]+$
             String slug = request.endpointUrl().trim();
             if (slug.contains("/")) {
                 String[] parts = slug.split("/");
@@ -140,7 +127,7 @@ public class ApiSchemeServiceImpl implements ApiSchemeService {
     }
 
     @Override
-    @Transactional // 🎯 ត្រូវតែមាន Transactional ដើម្បីឱ្យវាលុបទាំងមេទាំងកូនក្នុងពេលតែមួយ
+    @Transactional
     public void deleteScheme(Integer id, Jwt jwt) {
         String email = jwt.getClaimAsString("sub");
 
@@ -151,15 +138,11 @@ public class ApiSchemeServiceImpl implements ApiSchemeService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "អ្នកគ្មានសិទ្ធិលុប Schema របស់អ្នកដទៃឡើយ");
         }
 
-        // 🎯 ជំហានសំខាន់៖ លុបទិន្នន័យពាក់ព័ន្ធទាំងអស់មុននឹងលុប Schema
         try {
-            // ១. លុបទិន្នន័យដែលបាន Generate (ApiData)
             apiDataRepository.deleteAllByApiSchemeId(id);
 
-            // ២. លុប Analytics (បើមាន)
             analyticsRepository.deleteByApiSchemeId(id);
 
-            // ៣. លុប Schema ផ្ទាល់
             apiSchemeRepository.delete(scheme);
 
         } catch (Exception e) {
@@ -169,24 +152,18 @@ public class ApiSchemeServiceImpl implements ApiSchemeService {
 
     @Override
     public List<ApiSchemeResponse> getSchemesByFolder(Integer folderId, Jwt jwt) {
-        // ១. ទាញយក Email ពី Token
         String email = jwt.getClaimAsString("sub");
 
-        // ២. ស្វែងរក Folder ដើម្បីដឹងថាវាស្ថិតក្នុង Workspace ណា
         Folder folder = folderRepository.findById(folderId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "រកមិនឃើញ Folder ឡើយ"));
 
-        // ៣. ឆែកមើលសិទ្ធិ (Access Control)
-        // អ្នកប្រើប្រាស់ត្រូវតែជាសមាជិកនៃ Workspace នោះ ទើបអាចមើល API ក្នុង Folder នោះបាន
         boolean isMember = memberRepository.existsByWorkspaceIdAndUserEmail(folder.getWorkspace().getId(), email);
         if (!isMember) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "អ្នកគ្មានសិទ្ធិចូលមើលទិន្នន័យក្នុង Workspace នេះទេ");
         }
 
-        // ៤. ទាញយកបញ្ជី API Schemes ទាំងអស់ក្នុង Folder នោះ
         List<ApiScheme> schemes = apiSchemeRepository.findAllByFolderId(folderId);
 
-        // ៥. បំប្លែងពី Entity ទៅជា Response DTO ដោយប្រើ Mapper
         return schemes.stream()
                 .map(apiSchemeMapper::toResponse)
                 .toList();
@@ -196,21 +173,17 @@ public class ApiSchemeServiceImpl implements ApiSchemeService {
     public ApiSchemeResponse getSchemeById(Integer id, Jwt jwt) {
         String email = jwt.getClaimAsString("sub");
 
-        // ១. ស្វែងរក ApiScheme តាម ID
         ApiScheme scheme = apiSchemeRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "រកមិនឃើញ Schema ដែលអ្នកចង់បានឡើយ"));
 
-        // ២. ឆែកមើលសិទ្ធិ៖ អ្នកប្រើប្រាស់ត្រូវតែជាសមាជិកនៃ Workspace ដែល Schema នោះស្ថិតនៅ
         boolean isMember = memberRepository.existsByWorkspaceIdAndUserEmail(scheme.getWorkspace().getId(), email);
         if (!isMember) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "អ្នកគ្មានសិទ្ធិចូលមើល Schema នេះទេ");
         }
 
-        // ៣. បំប្លែងទៅជា Response DTO
         return apiSchemeMapper.toResponse(scheme);
     }
 
-    // ApiSchemeServiceImpl.java
 
     @Override
     @Transactional
@@ -223,7 +196,6 @@ public class ApiSchemeServiceImpl implements ApiSchemeService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only owner can publish this API");
         }
 
-        // បើគាត់កំពុង Publish (isPublished false -> true) ឱ្យ Update Description ថ្មី
         if (description != null && !description.isBlank()) {
             scheme.setDescription(description);
         }
@@ -309,29 +281,25 @@ public class ApiSchemeServiceImpl implements ApiSchemeService {
     public ApiSchemeResponse create(ApiSchemeRequest request, Jwt jwt) {
         String email = jwt.getClaimAsString("sub");
 
-        // ១. ប្រើ request.folderId() (គ្មានពាក្យ get)
         Folder folder = folderRepository.findById(request.folderId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "រកមិនឃើញ Folder ឡើយ"));
 
-        // ២. ប្រើ request.endpointUrl()
         String slug = request.endpointUrl().trim()
-                .replace("/", "")  // លុប / ចេញទាំងអស់
-                .toLowerCase();    // ប្តូរជាអក្សរតូចដើម្បីសុវត្ថិភាព
+                .replace("/", "")
+                .toLowerCase();
 
         String projectKey = folder.getWorkspace().getProjectKey();
         String generatedFullUrl = API_GATEWAY_PREFIX + projectKey + "/" + slug;
 
-        // ៣. បង្កើត Entity និង Map ទិន្នន័យ
         ApiScheme scheme = new ApiScheme();
-        scheme.setName(request.name()); // ✅ ត្រូវ
+        scheme.setName(request.name());
         scheme.setEndpointUrl(generatedFullUrl);
-        scheme.setDescription(request.description()); // ✅ ត្រូវ
-        scheme.setProperties(request.properties());   // ✅ ត្រូវ
-        scheme.setKeys(request.keys());               // ✅ ត្រូវ
-        scheme.setIsPublic(request.isPublic());       // ✅ ត្រូវ
+        scheme.setDescription(request.description());
+        scheme.setProperties(request.properties());
+        scheme.setKeys(request.keys());
+        scheme.setIsPublic(request.isPublic());
         scheme.setEndpointUrl(slug);
 
-        // ៤. កំណត់សមាជិកពាក់ព័ន្ធ
         User owner = userRepository.findByEmail(email).orElseThrow();
         scheme.setOwner(owner);
         scheme.setFolder(folder);
@@ -340,7 +308,6 @@ public class ApiSchemeServiceImpl implements ApiSchemeService {
 
         ApiScheme savedScheme = apiSchemeRepository.save(scheme);
 
-        // បង្កើត Analytics
         ProjectAnalytics analytics = new ProjectAnalytics();
         analytics.setApiScheme(savedScheme);
         analyticsRepository.save(analytics);
@@ -350,14 +317,12 @@ public class ApiSchemeServiceImpl implements ApiSchemeService {
 
     @Override
     public ApiSchemeResponse getPublicDetailById(Integer id) {
-        // ១. ស្វែងរក ApiScheme តាម ID
         ApiScheme scheme = apiSchemeRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND,
                         "រកមិនឃើញ API Schema ដែលអ្នកចង់បានឡើយ"
                 ));
 
-        // ២. 🎯 លក្ខខណ្ឌការពារ៖ បើ API មិនទាន់បាន Publish ទេ មិនឱ្យអ្នកដទៃមើលឡើយ
         if (!scheme.getIsPublic()) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
@@ -365,15 +330,12 @@ public class ApiSchemeServiceImpl implements ApiSchemeService {
             );
         }
 
-        // ៣. បំប្លែងទៅជា Response DTO រួចបោះទៅឱ្យ Controller
         return apiSchemeMapper.toResponse(scheme);
     }
 
-    // ApiSchemeServiceImpl.java
 
     @Override
     public List<ApiSchemeResponse> getCommunityFeed(String search, int page, int size, Jwt jwt) {
-        // ១. ទាញយក Current User ពី Token (បើអត់មាន Token គឺ null)
         User currentUser = null;
         if (jwt != null) {
             String email = jwt.getClaimAsString("sub");
@@ -390,28 +352,21 @@ public class ApiSchemeServiceImpl implements ApiSchemeService {
         }
 
         User finalCurrentUser = currentUser;
-        // ក្នុង ApiSchemeServiceImpl.java ត្រង់ getCommunityFeed
         return schemesPage.getContent().stream()
                 .map(scheme -> {
-                    // ១. Map ជាមុន
                     ApiSchemeResponse res = apiSchemeMapper.toResponse(scheme);
 
-                    // ២. តេស្ត Hardcode សិន (កុំទាន់ប្រើ Logic anyMatch)
-                    // បើ JSON ចេញ true មានន័យថា Record ដើរហើយ
                     return res.withIsFollowed(true);
                 })
                 .toList();
     }
 
-    // ឧទាហរណ៍ក្នុង Service ពេលទាញយក Community Feed
     public ApiSchemeResponse toResponseWithStatus(ApiScheme scheme, User currentUser) {
         ApiSchemeResponse response = apiSchemeMapper.toResponse(scheme);
 
-        // ឆែកមើលថា តើ currentUser មាននៅក្នុងបញ្ជី Followers របស់ Owner ដែរឬទេ
         boolean followed = scheme.getOwner().getFollowers().stream()
                 .anyMatch(f -> f.getId().equals(currentUser.getId()));
 
-        // បងត្រូវថែម field "Boolean isFollowed" ក្នុង ApiSchemeResponse DTO ផង
         response.withIsFollowed(followed);
 
         return response;

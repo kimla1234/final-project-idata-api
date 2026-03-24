@@ -17,9 +17,7 @@ public class JwtService {
     @Value("${app.jwt.secret:your-very-secure-secret-key-should-be-long-enough}")
     private String secretKey;
 
-    // សុពលភាព Access Token (ឧទាហរណ៍៖ ១ ម៉ោង)
     private final long ACCESS_TOKEN_EXPIRATION = 1000 * 60 * 60;
-    // សុពលភាព Refresh Token (ឧទាហរណ៍៖ ៧ ថ្ងៃ)
     private final long REFRESH_TOKEN_EXPIRATION = 1000 * 60 * 60 * 24 * 7;
 
     public String generateAccessToken(String email, String projectKey) {
@@ -31,7 +29,7 @@ public class JwtService {
                 .setSubject(username)
                 .setIssuedAt(new Date(System.currentTimeMillis()))
                 .setExpiration(new Date(System.currentTimeMillis() + 1000 * 60 * 60 * 24)) // ១ ថ្ងៃ
-                .signWith(getSigningKey(), SignatureAlgorithm.HS256) // 🎯 កែពី getSignInKey មក getSigningKey វិញ
+                .signWith(getSigningKey(), SignatureAlgorithm.HS256)
                 .compact();
     }
     public String generateRefreshToken(String username) {
@@ -45,7 +43,7 @@ public class JwtService {
 
     private String buildToken(String email, String projectKey, long expiration) {
         Map<String, Object> claims = new HashMap<>();
-        claims.put("projectKey", projectKey); // 🎯 ដាក់ ProjectKey ក្នុង Token ដើម្បីដឹងថាជារបស់ App ណា
+        claims.put("projectKey", projectKey);
 
         return Jwts.builder()
                 .setClaims(claims)
@@ -70,7 +68,6 @@ public class JwtService {
                 .getSubject();
     }
 
-    // 🎯 ១. សម្រាប់ឆែកមើលថា Token ត្រឹមត្រូវ និងមិនទាន់ផុតកំណត់ (Expired)
     public boolean isTokenValid(String token) {
         try {
             Jwts.parserBuilder()
@@ -79,12 +76,10 @@ public class JwtService {
                     .parseClaimsJws(token);
             return true;
         } catch (Exception e) {
-            // បើ Token ខុស format ឬ Expired វានឹងធ្លាក់ចូលទីនេះ
             return false;
         }
     }
 
-    // 🎯 ២. សម្រាប់ទាញយក Claims ផ្សេងៗ (ដូចជា projectKey) ចេញពី Token
     public String extractProjectKey(String token) {
         return Jwts.parserBuilder()
                 .setSigningKey(getSigningKey())

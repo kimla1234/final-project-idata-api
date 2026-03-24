@@ -27,8 +27,7 @@ public class AiMockController {
 
             return ResponseEntity.ok(Map.of("status", "success", "message", "Mock data generated successfully"));
         } catch (Exception e) {
-            // 🎯 ត្រូវបោះត្រឡប់ទៅវិញជា Map ដើម្បីឱ្យ Jackson បំប្លែងទៅជា JSON {"error": "..."}
-            // ធ្វើបែបនេះ Frontend នឹងលែងជួប PARSING_ERROR ទៀតហើយ
+
             return ResponseEntity.status(500).body(Map.of("error", e.getMessage()));
         }
     }

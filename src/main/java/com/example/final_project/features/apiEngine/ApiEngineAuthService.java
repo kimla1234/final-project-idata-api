@@ -14,7 +14,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
+import java.util.HashMap;
 
 @Service
 @RequiredArgsConstructor
@@ -23,34 +23,38 @@ public class ApiEngineAuthService {
     private final ApiSchemeRepository apiSchemeRepository;
     private final ApiDataRepository apiDataRepository;
     private final PasswordEncoder passwordEncoder;
-    private final JwtService jwtService; // 🎯 Service សម្រាប់បង្កើត JWT តាម standard របស់ប
-    // ង
+    private final JwtService jwtService; // Service for generating JWT based on project standards
 
-    // 🎯 ១. REGISTER: រក្សាទុក User ថ្មីចូលក្នុង Project របស់អតិថិជន
+    /**
+     * REGISTER: Persists a new end-user into the customer's specific project data.
+     */
     @Transactional
     public Map<String, Object> handleRegister(String projectKey, String apiKey, Map<String, Object> userData) {
         ApiScheme authScheme = validateKeys(projectKey, apiKey);
 
-        // Hash Password មុនរក្សាទុក
+        // Hash the password before saving
         if (userData.containsKey("password")) {
             userData.put("password", passwordEncoder.encode(userData.get("password").toString()));
         }
 
         ApiData newEndUser = new ApiData();
         newEndUser.setApiScheme(authScheme);
-        newEndUser.setJsonData(userData); // ទុកក្នុង JSON Column
+        newEndUser.setJsonData(userData); // Stored in the JSONB Column
         newEndUser.setCreatedAt(LocalDateTime.now());
 
         apiDataRepository.save(newEndUser);
         return Map.of("message", "User registered successfully", "status", 201);
     }
 
+    /**
+     * LOGIN: Authenticates end-users and generates JWT tokens.
+     */
     public Map<String, Object> handleLogin(String projectKey, String apiKey, Map<String, String> body) {
-        // 🎯 ១. ផ្ទៀងផ្ទាត់ Project Key និង API Key ដើម្បីប្រាកដថាអតិថិជនមានសិទ្ធិប្រើប្រាស់ Auth នេះ
+        // 1. Validate Project Key and API Key to ensure the client is authorized for this Auth scheme
         ApiScheme scheme = apiSchemeRepository.findByProjectKeyAndSlug(projectKey, "auth")
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Auth scheme not found for this project"));
 
-        // 🎯 ២. ចាប់យកទិន្នន័យពី Request Body
+        // 2. Extract data from the Request Body
         String username = body.get("username");
         String rawPassword = body.get("password");
 
@@ -58,55 +62,60 @@ public class ApiEngineAuthService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Username and password are required");
         }
 
-        // 🎯 ៣. ស្វែងរកទិន្នន័យអ្នកប្រើប្រាស់ (End-user) នៅក្នុង Table api_data តាមរយៈ scheme_id
+        // 3. Search for the end-user data in the api_data table via scheme_id
         List<ApiData> allData = apiDataRepository.findBySchemeId(scheme.getId().intValue());
 
-        // ច្រោះយកតែ User ណាដែលមាន username ត្រូវគ្នា (រកក្នុង JSONB Column)
+        // Filter for the user with the matching username (searching inside the JSONB Column)
         ApiData userRecord = allData.stream()
                 .filter(d -> d.getJsonData() != null && username.equals(d.getJsonData().get("username")))
                 .findFirst()
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found"));
 
-        // 🎯 ៤. ផ្ទៀងផ្ទាត់ Password ដោយប្រើ matches()
-        // (ព្រោះ storedPassword ក្នុង DB គឺជា Hash string ដែលបានមកពី BCrypt)
+        // 4. Verify the password using matches()
+        // (The storedPassword in DB is a BCrypt hashed string)
         String storedPassword = (String) userRecord.getJsonData().get("password");
 
         if (storedPassword == null || !passwordEncoder.matches(rawPassword, storedPassword)) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid password");
         }
 
-        // 🎯 ៥. បង្កើត JWT Token ពិតប្រាកដ
-        // បងអាចបន្ថែមព័ត៌មានផ្សេងៗចូលក្នុង Claims បានតាមចិត្ត
-        String accessToken = jwtService.generateToken(username); // ឬ generateAccessToken(username, projectKey)
+        // 5. Generate a standard JWT Access Token and Refresh Token
+        // You can add additional claims if needed
+        String accessToken = jwtService.generateToken(username);
         String refreshToken = jwtService.generateRefreshToken(username);
 
-        // លុប password ចេញពីទិន្នន័យដែលត្រូវផ្ញើទៅឱ្យ client ដើម្បីសុវត្ថិភាព
-        Map<String, Object> userResponse = new java.util.HashMap<>(userRecord.getJsonData());
+        // Remove the password from the response data for security purposes
+        Map<String, Object> userResponse = new HashMap<>(userRecord.getJsonData());
         userResponse.remove("password");
 
         return Map.of(
                 "message", "Login successful",
                 "status", 200,
-                "accessToken", accessToken,  // 🎯 ប្តូរឈ្មោះឱ្យច្បាស់
-                "refreshToken", refreshToken, // 🎯 បញ្ជូន Refresh Token ទៅវិញ
+                "accessToken", accessToken,
+                "refreshToken", refreshToken,
                 "user", userResponse
         );
     }
+
+    /**
+     * Internal utility to validate workspace project and API keys.
+     */
     private ApiScheme validateKeys(String pKey, String aKey) {
         return apiSchemeRepository.findByWorkspaceProjectKeyAndApiKey(pKey, aKey)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid Project or API Key"));
+    }
 
-}
-
+    /**
+     * REFRESH TOKEN: Generates a new Access Token using a valid Refresh Token.
+     */
     public Map<String, Object> handleRefreshToken(String projectKey, String apiKey, String refreshToken) {
-        // ១. ផ្ទៀងផ្ទាត់ Keys
+        // 1. Validate Keys
         validateKeys(projectKey, apiKey);
 
-        // ២. ផ្ទៀងផ្ទាត់ Refresh Token តាមរយៈ JwtService
-        // (បងត្រូវថែម method extractEmail ក្នុង JwtService ផង)
+        // 2. Validate the Refresh Token via JwtService (requires extractEmail method in JwtService)
         String email = jwtService.extractEmail(refreshToken);
 
-        // ៣. បង្កើត Access Token ថ្មី
+        // 3. Generate a fresh Access Token
         String newAccessToken = jwtService.generateAccessToken(email, projectKey);
 
         return Map.of(

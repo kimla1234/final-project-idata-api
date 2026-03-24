@@ -32,48 +32,54 @@ public class ApiScheme extends Auditable {
     private String name;
 
     @Column(nullable = false, unique = true)
-    private String endpointUrl; // ឧទាហរណ៍: "products" ឬ "users-list"
+    private String endpointUrl; // Example: "products" or "users-list"
 
     @Column(columnDefinition = "TEXT")
     private String description;
 
     /**
-     * ផ្ទុករចនាសម្ព័ន្ធ API ជាទម្រង់ JSON (Field name & Data type)
-     * ឧទាហរណ៍: {"name": "string", "price": "number"}
+     * Stores the API structure in JSON format (Field name & Data type)
+     * Example: {"name": "string", "price": "number"}
      */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private Map<String, Object> schemaStructure;
 
     @Column(nullable = false)
-    private Boolean isPublic = false; // សម្រាប់បង្ហាញក្នុង Community (Behance Style)
+    private Boolean isPublic = false; // Flag for Community Showcase (Behance Style)
 
     @Column(name = "is_published")
-    private Boolean isPublished = false; // សម្រាប់ Community Visibility
-
-    // នៅក្នុង ApiScheme Domain
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(columnDefinition = "jsonb")
-    private List<Map<String, Object>> properties; // ទុក fieldName, type, required
-
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(columnDefinition = "jsonb")
-    private List<Map<String, Object>> keys; // ទុក columnName, primaryKey, foreignKey, referenceTable
+    private Boolean isPublished = false; // Controls visibility in the Community section
 
     /**
-     * ប្រើសម្រាប់មុខងារ Fork
-     * ប្រសិនបើ API នេះបានមកពីការ Fork វានឹងរក្សាទុក ID របស់ API ដើម
+     * Detailed field metadata: fieldName, type, and required status
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb")
+    private List<Map<String, Object>> properties;
+
+    /**
+     * Database-level constraints: columnName, primaryKey, foreignKey, and referenceTable
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb")
+    private List<Map<String, Object>> keys;
+
+    /**
+     * Self-referencing relationship for the Fork feature.
+     * Stores the original API ID if this scheme was created via a Fork.
      */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "parent_id")
     private ApiScheme parentApi;
 
-    // ប្តូរពី defaultValue = "0" មកជា columnDefinition វិញ
     @Column(columnDefinition = "int default 0")
     private Integer forkCount = 0;
 
     @Column(columnDefinition = "int default 0")
     private Integer viewCount = 0;
+
+    // --- Relationships ---
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "folder_id", nullable = false)
@@ -90,28 +96,33 @@ public class ApiScheme extends Auditable {
     @OneToOne(mappedBy = "apiScheme", cascade = CascadeType.REMOVE, orphanRemoval = true)
     private ProjectAnalytics analytics;
 
+    // --- Auditing & Timestamps ---
+
     @LastModifiedBy
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "last_modified_by_id")
     private User lastModifiedBy;
 
-    @UpdateTimestamp // វានឹង Update ម៉ោងអូតូឱ្យរាល់ពេលបងហៅ save()
+    @UpdateTimestamp // Automatically updates timestamp on every save operation
     private LocalDateTime updatedAt;
 
-    @CreationTimestamp // សម្រាប់ថ្ងៃបង្កើតដំបូង
+    @CreationTimestamp // Automatically sets timestamp on record creation
     private LocalDateTime createdAt;
+
+    // --- Data & Configuration ---
 
     @OneToMany(mappedBy = "apiScheme", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ApiData> apiData;
 
     @Column(name = "api_key")
-    private String apiKey;
+    private String apiKey; // Unique secret key for API access authentication
 
     @Column(columnDefinition = "TEXT")
-    private String defaultResponse;// លេខកូដសម្ងាត់សម្រាប់ API នីមួយៗ
+    private String defaultResponse;
+
     @Column(columnDefinition = "TEXT")
     private String definition;
 
     @Column(name = "type", length = 20)
-    private String type; // តម្លៃអាចជា "AUTH" ឬ "DATA"
+    private String type; // Possible values: "AUTH" or "DATA"
 }

@@ -35,7 +35,6 @@ public class FolderServiceImpl implements FolderService {
     @Override
     @Transactional
     public FolderResponse createFolder(Integer workspaceId, FolderRequest request, Jwt jwt) {
-        // ១. ឆែកមើលថា User ជាសមាជិក Workspace ហ្នឹងមែនអត់
         String email = jwt.getClaimAsString("sub");
         boolean isMember = workspaceMemberRepository.existsByWorkspaceIdAndUserEmail(workspaceId, email);
 
@@ -43,11 +42,9 @@ public class FolderServiceImpl implements FolderService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "អ្នកគ្មានសិទ្ធិបង្កើត Folder ក្នុង Workspace នេះទេ");
         }
 
-        // ២. ទាញយក Workspace Entity
         Workspace workspace = workspaceRepository.findById(workspaceId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "រកមិនឃើញ Workspace"));
 
-        // ៣. រក្សាទុក Folder
         Folder folder = folderMapper.fromRequest(request);
         folder.setWorkspace(workspace);
 
@@ -56,7 +53,6 @@ public class FolderServiceImpl implements FolderService {
 
     @Override
     public List<FolderResponse> getFoldersByWorkspace(Integer workspaceId, Jwt jwt) {
-        // ឆែកសិទ្ធិមុននឹងឱ្យ List ទៅកាន់ User
         String email = jwt.getClaimAsString("sub");
         if (!workspaceMemberRepository.existsByWorkspaceIdAndUserEmail(workspaceId, email)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access Denied");
@@ -67,48 +63,36 @@ public class FolderServiceImpl implements FolderService {
 
     @Override
     public FolderResponse updateFolder(Integer folderId, FolderRequest request, Jwt jwt) {
-        // ១. ស្វែងរក Folder ក្នុង Database
         Folder folder = folderRepository.findById(folderId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Folder not found"));
 
-        // ២. (Optional) ឆែក Security ថា User ហ្នឹងមានសិទ្ធិកែក្នុង Workspace ហ្នឹងអត់
-        // String email = jwt.getClaimAsString("email");
-        // ... logic ឆែក ownership ...
 
-        // ៣. កែឈ្មោះថ្មី
         folder.setName(request.name());
 
-        // ៤. រក្សាទុកចូល Database វិញ
         folder = folderRepository.save(folder);
 
         return folderMapper.toResponse(folder);
     }
 
     @Override
-    @Transactional // 🎯 សំខាន់ណាស់៖ បើលុបមិនអស់ វានឹង Rollback វិញមិនឱ្យខូច Data
+    @Transactional
     public void deleteFolder(Integer folderId, Jwt jwt) {
-        // ១. ស្វែងរក Folder ឱ្យឃើញសិន
         Folder folder = folderRepository.findById(folderId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "រកមិនឃើញ Folder ឡើយ"));
 
-        // ២. ទាញយក ApiSchemes ទាំងអស់ដែលមាននៅក្នុង Folder នេះ
+
         List<ApiScheme> schemes = apiSchemeRepository.findAllByFolderId(folderId);
 
         try {
             for (ApiScheme scheme : schemes) {
-                // 🎯 កម្ទេចទិន្នន័យកូនចៅរបស់ Schema នីមួយៗតាមលំដាប់
 
-                // ក. លុប Mock Data (ApiData)
                 apiDataRepository.deleteAllByApiSchemeId(scheme.getId());
 
-                // ខ. លុប Analytics
                 analyticsRepository.deleteById(scheme.getId());
 
-                // គ. លុប Schema ខ្លួនឯង
                 apiSchemeRepository.delete(scheme);
             }
 
-            // ៣. បន្ទាប់ពីកូនចៅស្លាប់អស់ហើយ ទើបយើងអាចលុប Folder បានដោយសុវត្ថិភាព
             folderRepository.delete(folder);
 
         } catch (Exception e) {

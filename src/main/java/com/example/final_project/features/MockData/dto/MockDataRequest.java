@@ -6,5 +6,5 @@ import java.util.Map;
 
 public record MockDataRequest(
         @NotNull(message = "ទិន្នន័យ JSON មិនអាចទទេបានទេ")
-        Map<String, Object> data // ឧទាហរណ៍៖ {"name": "Product A", "price": 100}
+        Map<String, Object> data
 ) {}

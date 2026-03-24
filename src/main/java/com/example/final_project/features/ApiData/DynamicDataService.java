@@ -21,17 +21,14 @@ public class DynamicDataService {
 
         ObjectMapper objectMapper = new ObjectMapper();
         List<String> columnNames = dataList.get(0).keySet().stream()
-                .filter(key -> !key.equalsIgnoreCase("id")) // 🎯 រំលង id ចោល
+                .filter(key -> !key.equalsIgnoreCase("id"))
                 .collect(Collectors.toList());
 
-        // 🎯 យើងនឹងបាញ់ចូល Table 'api_data' តែម្ដង (ឬប្រើ tableName បើបងចង់ឱ្យវា Dynamic)
-        // ប៉ុន្តែ Column ត្រូវតែជា content និង api_scheme_id តាមរូបភាព Screenshot
         String sql = "INSERT INTO api_data (content, api_scheme_id, created_at) VALUES (?::jsonb, ?, NOW())";
 
         List<Object[]> batchArgs = dataList.stream()
                 .map(row -> {
                     try {
-                        // បំប្លែង Map (ទិន្នន័យ AI) ទៅជា JSON String
                         String jsonContent = objectMapper.writeValueAsString(row);
                         return new Object[]{ jsonContent, apiSchemeId };
                     } catch (Exception e) {

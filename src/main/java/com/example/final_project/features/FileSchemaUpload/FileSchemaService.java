@@ -34,9 +34,7 @@ public class FileSchemaService {
     @Value("${openrouter.model}")
     private String modelName;
 
-    /**
-     * 🎯 មុខងារចម្បង៖ អាន File (JSON/CSV) និងឱ្យ AI វិភាគរក Schema
-     */
+
     public Map<String, Object> extractSchemaFromFile(MultipartFile file) {
         try {
             String fileContent = "";
@@ -60,26 +58,23 @@ public class FileSchemaService {
 
     private String readJsonPreview(MultipartFile file) throws Exception {
         JsonNode root = objectMapper.readTree(file.getInputStream());
-        // បើយក Array មក preview យកតែ object ទី១ បានហើយដើម្បីសន្សំ Token
         return root.isArray() ? root.get(0).toString() : root.toString();
     }
 
     private String readCsvPreview(MultipartFile file) throws Exception {
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8))) {
-            // អានត្រឹម ៥ ជួរដើម្បីឱ្យ AI ស្គាល់ Header និងទម្រង់ទិន្នន័យ
             return reader.lines().limit(5).collect(Collectors.joining("\n"));
         }
     }
 
     private Map<String, Object> callAiToInferSchema(String fullPrompt) {
-        // 🎯 បង្កើត Payload តាមទម្រង់ OpenRouter (OpenAI Compatible)
         Map<String, Object> payload = Map.of(
                 "model", modelName,
                 "messages", List.of(
                         Map.of("role", "system", "content", "You are a Data Architect. Return ONLY raw JSON."),
                         Map.of("role", "user", "content", fullPrompt)
                 ),
-                "temperature", 0.3 // កំណត់ទាបដើម្បីឱ្យលទ្ធផលច្បាស់លាស់ (Strict JSON)
+                "temperature", 0.3
         );
 
         try {
@@ -87,7 +82,7 @@ public class FileSchemaService {
                     .post()
                     .uri(apiUrl)
                     .header("Authorization", "Bearer " + apiKey)
-                    .header("HTTP-Referer", "http://localhost:8081")
+                    .header("HTTP-Referer", "https://api.idata.fit")
                     .header("X-Title", "API Schema Generator")
                     .header("Content-Type", "application/json")
                     .bodyValue(payload)
@@ -109,7 +104,6 @@ public class FileSchemaService {
         try {
             JsonNode root = objectMapper.readTree(aiResponse);
 
-            // 🎯 ទាញយក content តាមទម្រង់ choices[0].message.content
             String jsonContent = root.path("choices").get(0)
                     .path("message").path("content").asText();
 
@@ -117,7 +111,6 @@ public class FileSchemaService {
                 throw new RuntimeException("AI returned empty content");
             }
 
-            // សម្អាត Markdown បើមាន
             jsonContent = jsonContent.trim().replaceAll("^```json|```$", "");
 
             return objectMapper.readValue(jsonContent, new TypeReference<>() {});
@@ -126,9 +119,7 @@ public class FileSchemaService {
         }
     }
 
-    /**
-     * 🎯 បង្កើត Schema តាមរយៈការសរសេរ Prompt ផ្ទាល់មាត់
-     */
+
     public Map<String, Object> generateSchemaFromPrompt(String userPrompt) {
         try {
             String systemPrompt = """
